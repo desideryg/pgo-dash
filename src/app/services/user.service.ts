@@ -6,8 +6,14 @@ import {
   User, 
   CreateUserRequest, 
   CreateUserResponse, 
-  ApiResponse 
+  ApiResponse,
+  UserPermissionSummaryResponse,
+  UserPermissionAssignmentRequest,
+  UserPermissionAssignmentResponse,
+  BulkUserPermissionAssignmentRequest,
+  BulkUserPermissionAssignmentResponse 
 } from '../models/user.model';
+import { Permission } from '../models/permission.model';
 
 @Injectable({
   providedIn: 'root'
@@ -78,5 +84,76 @@ export class UserService {
    */
   unlockUser(uid: string): Observable<ApiResponse<boolean>> {
     return this.http.post<ApiResponse<boolean>>(`${this.API_URL}/admin/v1/users/uid/${uid}/unlock`, {});
+  }
+
+  /**
+   * Get direct permissions assigned to a user
+   */
+  getUserPermissions(userId: string): Observable<ApiResponse<Permission[]>> {
+    return this.http.get<ApiResponse<Permission[]>>(`${this.API_URL}/admin/v1/users/${userId}/permissions`);
+  }
+
+  /**
+   * Assign permissions directly to a user
+   */
+  assignPermissionsToUser(userId: string, permissionIds: number[], reason?: string, expiresAt?: string): Observable<UserPermissionAssignmentResponse> {
+    const request: UserPermissionAssignmentRequest = { 
+      permissionIds,
+      ...(reason && { reason }),
+      ...(expiresAt && { expiresAt })
+    };
+    return this.http.post<UserPermissionAssignmentResponse>(`${this.API_URL}/admin/v1/users/${userId}/permissions`, request);
+  }
+
+  /**
+   * Remove permissions from a user (bulk operation)
+   */
+  removePermissionsFromUser(userId: string, permissionIds: number[], reason?: string): Observable<UserPermissionAssignmentResponse> {
+    const request: UserPermissionAssignmentRequest = { 
+      permissionIds,
+      ...(reason && { reason })
+    };
+    return this.http.delete<UserPermissionAssignmentResponse>(`${this.API_URL}/admin/v1/users/${userId}/permissions`, { body: request });
+  }
+
+  /**
+   * Remove a specific permission from a user
+   */
+  removePermissionFromUser(userId: string, permissionId: number): Observable<ApiResponse<void>> {
+    return this.http.delete<ApiResponse<void>>(`${this.API_URL}/admin/v1/users/${userId}/permissions/${permissionId}`);
+  }
+
+  /**
+   * Check if a user has a specific permission from any source (direct or role-based)
+   */
+  userHasPermission(userId: string, permissionId: number): Observable<ApiResponse<boolean>> {
+    return this.http.get<ApiResponse<boolean>>(`${this.API_URL}/admin/v1/users/${userId}/permissions/${permissionId}/exists`);
+  }
+
+  /**
+   * Check if a user has a specific permission directly assigned (not from roles)
+   */
+  userHasDirectPermission(userId: string, permissionId: number): Observable<ApiResponse<boolean>> {
+    return this.http.get<ApiResponse<boolean>>(`${this.API_URL}/admin/v1/users/${userId}/permissions/${permissionId}/direct-exists`);
+  }
+
+  /**
+   * Get comprehensive user permission summary (role-based + direct permissions)
+   */
+  getUserPermissionSummary(userId: string): Observable<UserPermissionSummaryResponse> {
+    return this.http.get<UserPermissionSummaryResponse>(`${this.API_URL}/admin/v1/users/${userId}/permissions/summary`);
+  }
+
+  /**
+   * Bulk assign permissions to multiple users
+   */
+  bulkAssignPermissionsToUsers(userIds: number[], permissionIds: number[], reason?: string, expiresAt?: string): Observable<BulkUserPermissionAssignmentResponse> {
+    const request: BulkUserPermissionAssignmentRequest = {
+      userIds,
+      permissionIds,
+      ...(reason && { reason }),
+      ...(expiresAt && { expiresAt })
+    };
+    return this.http.post<BulkUserPermissionAssignmentResponse>(`${this.API_URL}/admin/v1/users/bulk-assign-permissions`, request);
   }
 }

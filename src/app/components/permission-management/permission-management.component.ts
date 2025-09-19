@@ -6,12 +6,15 @@ import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { PermissionService } from '../../services/permission.service';
 import { RoleService } from '../../services/role.service';
+import { UserService } from '../../services/user.service';
+import { MerchantService } from '../../services/merchant.service';
 import { 
   Permission, 
   CreatePermissionRequest,
   AvailablePermission
 } from '../../models/permission.model';
 import { Role } from '../../models/role.model';
+import { User, UserPermissionSummary } from '../../models/user.model';
 import { ConfigService } from '../../services/config.service';
 import { ConfigOption } from '../../models/config.model';
 
@@ -75,6 +78,61 @@ export class PermissionManagementComponent implements OnInit {
   selectedPermissionForRoles: Permission | null = null;
   permissionRoles: Role[] = [];
   loadingPermissionRoles = false;
+  
+  // Permission-to-users functionality
+  showPermissionUsersModal = false;
+  selectedPermissionForUsers: Permission | null = null;
+  permissionUsers: User[] = [];
+  loadingPermissionUsers = false;
+  
+  // User permissions functionality
+  showUserPermissions = false;
+  users: User[] = [];
+  filteredUsers: User[] = [];
+  selectedUser: User | null = null;
+  userPermissionSummary: UserPermissionSummary | null = null;
+  showUserPermissionModal = false;
+  loadingUserPermissions = false;
+  userSearchTerm = '';
+  selectedUserStatus = '';
+  loadingUsers = false;
+  activePermissionTab = 'all'; // 'all', 'role-based', 'direct'
+  
+  // User permission assignment functionality
+  showAssignUserPermissionsForm = false;
+  availablePermissionsForUserAssignment: Permission[] = [];
+  selectedPermissionsForUserAssignment: number[] = [];
+  userAssignmentReason = '';
+  userAssignmentExpiresAt = '';
+  loadingUserAssignment = false;
+  
+  // User permission checking functionality
+  showPermissionCheckModal = false;
+  selectedPermissionForCheck: Permission | null = null;
+  selectedUserForPermissionCheck: User | null = null;
+  permissionCheckResult: boolean | null = null;
+  directPermissionCheckResult: boolean | null = null;
+  loadingPermissionCheck = false;
+  loadingDirectPermissionCheck = false;
+  
+  // User permission removal functionality
+  showRemoveUserPermissionsForm = false;
+  selectedPermissionsForUserRemoval: number[] = [];
+  userRemovalReason = '';
+  loadingUserRemoval = false;
+  
+  // Bulk user permission assignment functionality
+  showBulkUserAssignmentForm = false;
+  selectedUsersForBulkAssignment: string[] = [];
+  selectedPermissionsForBulkUserAssignment: number[] = [];
+  bulkUserAssignmentReason = '';
+  bulkUserAssignmentExpiresAt = '';
+  loadingBulkUserAssignment = false;
+  
+  // Helper property for date input minimum value
+  get todayDate(): string {
+    return new Date().toISOString().split('T')[0];
+  }
 
   // Filter options
   selectedResource = '';
@@ -88,6 +146,12 @@ export class PermissionManagementComponent implements OnInit {
   permissionResources: ConfigOption[] = [];
   permissionScopeTypes: ConfigOption[] = [];
   
+  // Scope ID selection data
+  availableMerchants: any[] = [];
+  availableUsers: User[] = [];
+  loadingMerchants = false;
+  showManualScopeInput = false;
+  
   createPermissionForm: FormGroup;
   editPermissionForm: FormGroup;
 
@@ -100,6 +164,8 @@ export class PermissionManagementComponent implements OnInit {
   constructor(
     private permissionService: PermissionService,
     private roleService: RoleService,
+    private userService: UserService,
+    private merchantService: MerchantService,
     private configService: ConfigService,
     private fb: FormBuilder,
     private router: Router
@@ -124,9 +190,21 @@ export class PermissionManagementComponent implements OnInit {
         scopeIdControl?.clearValidators();
         scopeIdControl?.setValue('');
       } else {
-        scopeIdControl?.setValidators([Validators.required]);
+        const validators = [Validators.required];
+        
+        // Add pattern validation based on scope type
+        if (scopeType === 'MERCHANT') {
+          validators.push(Validators.pattern(/^merchant:[A-Z0-9]{26}$/));
+        } else if (scopeType === 'USER') {
+          validators.push(Validators.pattern(/^user:[A-Z0-9]{26}$/));
+        }
+        
+        scopeIdControl?.setValidators(validators);
       }
       scopeIdControl?.updateValueAndValidity();
+      
+      // Load appropriate data for scope selection
+      this.onScopeTypeChange(scopeType);
     });
   }
 
@@ -135,6 +213,7 @@ export class PermissionManagementComponent implements OnInit {
     this.loadPermissions();
     this.loadAvailablePermissions();
     this.loadRoles();
+    this.loadUsers();
   }
 
   loadConfiguration(): void {
@@ -144,6 +223,7 @@ export class PermissionManagementComponent implements OnInit {
           this.permissionActions = this.configService.getPermissionActionTypes();
           this.permissionResources = this.configService.getPermissionResourceTypes();
           this.permissionScopeTypes = this.configService.getPermissionScopeTypes();
+          
           
           // Set default scope type to GLOBAL if available
           const globalScope = this.permissionScopeTypes.find(scope => scope.value === 'GLOBAL');
@@ -306,15 +386,34 @@ export class PermissionManagementComponent implements OnInit {
         description: formValue.description
       };
 
-      // Include custom name if provided
+      // Include custom name if provided (but avoid role names that might cause backend validation issues)
       if (formValue.name && formValue.name.trim()) {
-        permissionData.name = formValue.name.trim();
+        const customName = formValue.name.trim();
+        const roleNames = [
+          'SUPER_ADMIN', 'SYSTEM_ADMIN', 'SECURITY_ADMIN', 'BUSINESS_ADMIN', 'FINANCE_ADMIN', 
+          'COMPLIANCE_ADMIN', 'MERCHANT_ADMIN', 'MERCHANT_USER', 'MERCHANT_FINANCE', 
+          'MERCHANT_SUPPORT', 'PAYMENT_OPERATOR', 'PAYMENT_ANALYST', 'SETTLEMENT_OPERATOR', 
+          'RECONCILIATION_USER', 'SUPPORT_AGENT', 'SUPPORT_SUPERVISOR', 'ESCALATION_MANAGER', 
+          'TECHNICAL_ADMIN', 'DEVELOPER', 'SYSTEM_MONITOR', 'AUDITOR', 'COMPLIANCE_OFFICER', 
+          'RISK_ANALYST'
+        ];
+        
+        if (roleNames.includes(customName.toUpperCase())) {
+          this.error = `Custom permission name "${customName}" conflicts with existing role names. Please choose a different name.`;
+          this.loading = false;
+          return;
+        }
+        
+        permissionData.name = customName;
       }
 
       // Only include scopeId if it's not global scope
       if (formValue.scopeType !== 'GLOBAL' && formValue.scopeId) {
         permissionData.scopeId = formValue.scopeId;
       }
+
+      // Debug: Log the request data
+      console.log('Creating permission with data:', permissionData);
 
       this.permissionService.createPermission(permissionData).subscribe({
         next: (response) => {
@@ -329,7 +428,22 @@ export class PermissionManagementComponent implements OnInit {
         },
         error: (error) => {
           console.error('Error creating permission:', error);
-          this.error = error.error?.message || 'Failed to create permission. Please try again.';
+          console.error('Full error object:', error);
+          console.error('Request data that caused error:', permissionData);
+          
+          // Enhanced error message
+          let errorMessage = 'Failed to create permission. Please try again.';
+          
+          if (error.error?.message) {
+            errorMessage = error.error.message;
+            
+            // Check if this is the role validation error
+            if (errorMessage.includes('Invalid value name') && errorMessage.includes('SUPER_ADMIN')) {
+              errorMessage = `Backend validation error: The backend is incorrectly validating permission names against role names. This appears to be a backend issue. Error: ${errorMessage}`;
+            }
+          }
+          
+          this.error = errorMessage;
           this.loading = false;
         }
       });
@@ -402,6 +516,151 @@ export class PermissionManagementComponent implements OnInit {
       case 'MERCHANT': return 'scope-merchant';
       case 'USER': return 'scope-user';
       default: return 'scope-default';
+    }
+  }
+
+  getScopeIdPlaceholder(): string {
+    const scopeType = this.createPermissionForm.get('scopeType')?.value;
+    switch (scopeType) {
+      case 'MERCHANT':
+        return 'e.g., merchant:01ARZ3NDEKTSV4RRFFQ69G5FAV';
+      case 'USER':
+        return 'e.g., user:01ARZ3NDEKTSV4RRFFQ69G5FAV';
+      default:
+        return 'Enter scope ID';
+    }
+  }
+
+  getScopeIdHelpText(): string {
+    const scopeType = this.createPermissionForm.get('scopeType')?.value;
+    switch (scopeType) {
+      case 'MERCHANT':
+        return 'Enter merchant UID with "merchant:" prefix (e.g., merchant:01ARZ3NDEKTSV4RRFFQ69G5FAV)';
+      case 'USER':
+        return 'Enter user UID with "user:" prefix (e.g., user:01ARZ3NDEKTSV4RRFFQ69G5FAV)';
+      default:
+        return 'Specific ID for scoped permissions';
+    }
+  }
+
+  /**
+   * Format scope ID for better display
+   */
+  formatScopeId(scopeId: string | null): string {
+    if (!scopeId) return '';
+    
+    // If it's the new format with prefix, make it more readable
+    if (scopeId.includes(':')) {
+      const [prefix, id] = scopeId.split(':');
+      return `${prefix.toUpperCase()}: ${id}`;
+    }
+    
+    // Legacy format - return as is
+    return scopeId;
+  }
+
+  /**
+   * Get scope type from scope ID (for new format)
+   */
+  getScopeTypeFromId(scopeId: string | null): string {
+    if (!scopeId || !scopeId.includes(':')) return '';
+    return scopeId.split(':')[0].toUpperCase();
+  }
+
+  /**
+   * Get the actual ID part from scope ID (for new format)
+   */
+  getActualIdFromScopeId(scopeId: string | null): string {
+    if (!scopeId) return '';
+    if (!scopeId.includes(':')) return scopeId;
+    return scopeId.split(':')[1];
+  }
+
+  /**
+   * Load merchants for scope ID selection
+   */
+  loadMerchantsForScopeSelection(): void {
+    this.loadingMerchants = true;
+    this.merchantService.getMerchants().subscribe({
+      next: (response) => {
+        if (response.status) {
+          this.availableMerchants = response.data;
+        } else {
+          console.error('Failed to load merchants:', response.message);
+        }
+        this.loadingMerchants = false;
+      },
+      error: (error) => {
+        console.error('Error loading merchants:', error);
+        this.loadingMerchants = false;
+      }
+    });
+  }
+
+  /**
+   * Load users for scope ID selection (reuse existing users array)
+   */
+  loadUsersForScopeSelection(): void {
+    if (this.users.length === 0) {
+      this.loadUsers();
+    }
+  }
+
+  /**
+   * Generate scope ID based on selected entity
+   */
+  generateScopeId(entityType: string, entityUid: string): string {
+    return `${entityType.toLowerCase()}:${entityUid}`;
+  }
+
+  /**
+   * Handle scope type change and load appropriate data
+   */
+  onScopeTypeChange(scopeType: string): void {
+    if (scopeType === 'MERCHANT') {
+      this.loadMerchantsForScopeSelection();
+    } else if (scopeType === 'USER') {
+      this.loadUsersForScopeSelection();
+    }
+    
+    // Reset scope ID when scope type changes
+    this.createPermissionForm.get('scopeId')?.setValue('');
+    this.showManualScopeInput = false;
+  }
+
+  /**
+   * Handle entity selection and generate scope ID
+   */
+  onEntitySelected(entityType: string, event: any): void {
+    const selectedUid = event.target.value;
+    if (selectedUid) {
+      const generatedScopeId = this.generateScopeId(entityType, selectedUid);
+      this.createPermissionForm.get('scopeId')?.setValue(generatedScopeId);
+    } else {
+      this.createPermissionForm.get('scopeId')?.setValue('');
+    }
+  }
+
+  /**
+   * Clear the selected scope ID
+   */
+  clearScopeId(): void {
+    this.createPermissionForm.get('scopeId')?.setValue('');
+    
+    // Reset dropdowns
+    const merchantSelect = document.getElementById('merchantSelect') as HTMLSelectElement;
+    const userSelect = document.getElementById('userSelect') as HTMLSelectElement;
+    if (merchantSelect) merchantSelect.value = '';
+    if (userSelect) userSelect.value = '';
+  }
+
+  /**
+   * Toggle manual scope input mode
+   */
+  toggleManualScopeInput(): void {
+    this.showManualScopeInput = !this.showManualScopeInput;
+    if (!this.showManualScopeInput) {
+      this.createPermissionForm.get('scopeId')?.setValue('');
     }
   }
 
@@ -1001,5 +1260,712 @@ export class PermissionManagementComponent implements OnInit {
   getPermissionRoleCount(permissionId: number): number {
     // This could be enhanced to use cached data or API call
     return this.permissionRoles.length;
+  }
+
+  // Permission-to-users methods
+  showPermissionUsers(permission: Permission): void {
+    this.selectedPermissionForUsers = permission;
+    this.showPermissionUsersModal = true;
+    this.loadPermissionUsers(permission.id);
+  }
+
+  hidePermissionUsersModal(): void {
+    this.showPermissionUsersModal = false;
+    this.selectedPermissionForUsers = null;
+    this.permissionUsers = [];
+    this.loadingPermissionUsers = false;
+  }
+
+  loadPermissionUsers(permissionId: number): void {
+    this.loadingPermissionUsers = true;
+    this.permissionUsers = [];
+    this.error = '';
+
+    this.permissionService.getUsersWithDirectPermission(permissionId).subscribe({
+      next: (response) => {
+        if (response.status) {
+          this.permissionUsers = response.data;
+        } else {
+          this.error = response.message || 'Failed to load users with direct permission';
+        }
+        this.loadingPermissionUsers = false;
+      },
+      error: (error) => {
+        console.error('Error loading users with direct permission:', error);
+        this.error = 'Failed to load users with direct permission. Please try again.';
+        this.loadingPermissionUsers = false;
+      }
+    });
+  }
+
+  getPermissionUserCount(permissionId: number): number {
+    return this.permissionUsers.length;
+  }
+
+  // User permissions methods
+  loadUsers(): void {
+    this.loadingUsers = true;
+    this.userService.getUsers().subscribe({
+      next: (response) => {
+        if (response.status) {
+          this.users = response.data;
+          this.applyUserFilters();
+        } else {
+          console.error('Failed to load users:', response.message);
+        }
+        this.loadingUsers = false;
+      },
+      error: (error) => {
+        console.error('Error loading users:', error);
+        this.loadingUsers = false;
+      }
+    });
+  }
+
+  applyUserFilters(): void {
+    let filtered = [...this.users];
+
+    // Apply search filter
+    if (this.userSearchTerm.trim()) {
+      const search = this.userSearchTerm.toLowerCase();
+      filtered = filtered.filter(user =>
+        user.firstName.toLowerCase().includes(search) ||
+        user.lastName.toLowerCase().includes(search) ||
+        user.email.toLowerCase().includes(search) ||
+        user.username.toLowerCase().includes(search) ||
+        user.uid.toLowerCase().includes(search)
+      );
+    }
+
+    // Apply status filter
+    if (this.selectedUserStatus) {
+      if (this.selectedUserStatus === 'active') {
+        filtered = filtered.filter(user => user.active && !user.locked);
+      } else if (this.selectedUserStatus === 'inactive') {
+        filtered = filtered.filter(user => !user.active);
+      } else if (this.selectedUserStatus === 'locked') {
+        filtered = filtered.filter(user => user.locked);
+      }
+    }
+
+    this.filteredUsers = filtered;
+  }
+
+  clearUserFilters(): void {
+    this.userSearchTerm = '';
+    this.selectedUserStatus = '';
+    this.applyUserFilters();
+  }
+
+  toggleUserPermissions(): void {
+    this.showUserPermissions = !this.showUserPermissions;
+  }
+
+  viewUserPermissions(user: User): void {
+    this.selectedUser = user;
+    this.showUserPermissionModal = true;
+    this.loadUserPermissions(user.id);
+  }
+
+  loadUserPermissions(userId: string): void {
+    this.loadingUserPermissions = true;
+    this.userPermissionSummary = null;
+    this.error = '';
+
+    this.userService.getUserPermissionSummary(userId).subscribe({
+      next: (response) => {
+        if (response.status) {
+          this.userPermissionSummary = response.data;
+        } else {
+          this.error = response.message || 'Failed to load user permission summary';
+        }
+        this.loadingUserPermissions = false;
+      },
+      error: (error) => {
+        console.error('Error loading user permission summary:', error);
+        this.error = 'Failed to load user permission summary. Please try again.';
+        this.loadingUserPermissions = false;
+      }
+    });
+  }
+
+  hideUserPermissionModal(): void {
+    this.showUserPermissionModal = false;
+    this.selectedUser = null;
+    this.userPermissionSummary = null;
+    this.loadingUserPermissions = false;
+    this.activePermissionTab = 'all';
+  }
+
+  setActivePermissionTab(tab: string): void {
+    this.activePermissionTab = tab;
+  }
+
+  getActivePermissions(): Permission[] {
+    if (!this.userPermissionSummary) return [];
+    
+    switch (this.activePermissionTab) {
+      case 'role-based':
+        return this.userPermissionSummary.roleBasedPermissions;
+      case 'direct':
+        return this.userPermissionSummary.directPermissions;
+      default:
+        return this.userPermissionSummary.allPermissions;
+    }
+  }
+
+  // Helper methods for template logic
+  isActiveTab(tab: string): boolean {
+    return this.activePermissionTab === tab;
+  }
+
+  isRoleBasedTab(): boolean {
+    return this.activePermissionTab === 'role-based';
+  }
+
+  isDirectTab(): boolean {
+    return this.activePermissionTab === 'direct';
+  }
+
+  isAllTab(): boolean {
+    return this.activePermissionTab === 'all';
+  }
+
+  canRemovePermission(): boolean {
+    return this.activePermissionTab === 'direct' || this.activePermissionTab === 'all';
+  }
+
+  getRemoveButtonTitle(): string {
+    return this.activePermissionTab === 'role-based' 
+      ? 'Cannot remove role-based permissions here' 
+      : 'Remove direct permission from user';
+  }
+
+  isDirectPermission(permissionId: number): boolean {
+    return this.userPermissionSummary?.directPermissions.some(p => p.id === permissionId) || false;
+  }
+
+  isRoleBasedPermission(permissionId: number): boolean {
+    return this.userPermissionSummary?.roleBasedPermissions.some(p => p.id === permissionId) || false;
+  }
+
+  getPermissionSourceLabel(permissionId: number): string {
+    return this.isDirectPermission(permissionId) ? 'Direct' : 'Role';
+  }
+
+  getTabTitle(tab: string): string {
+    if (!this.userPermissionSummary) return '';
+    
+    switch (tab) {
+      case 'all':
+        return `All Permissions (${this.userPermissionSummary.totalUniquePermissions})`;
+      case 'role-based':
+        return `Role-based (${this.userPermissionSummary.roleBasedPermissionCount})`;
+      case 'direct':
+        return `Direct (${this.userPermissionSummary.directPermissionCount})`;
+      default:
+        return '';
+    }
+  }
+
+  getNoPermissionsMessage(): string {
+    switch (this.activePermissionTab) {
+      case 'direct':
+        return 'This user has no direct permissions assigned.';
+      case 'role-based':
+        return 'This user has no role-based permissions.';
+      default:
+        return 'This user has no permissions assigned.';
+    }
+  }
+
+  // Helper methods for null-safe template operations
+  getUserDirectPermissions(): Permission[] {
+    return this.userPermissionSummary?.directPermissions || [];
+  }
+
+  hasDirectPermissions(): boolean {
+    return this.getUserDirectPermissions().length > 0;
+  }
+
+  getDirectPermissionCount(): number {
+    return this.getUserDirectPermissions().length;
+  }
+
+  removePermissionFromUser(userId: string, permissionId: number): void {
+    if (confirm('Are you sure you want to remove this direct permission from the user?')) {
+      this.loadingUserPermissions = true;
+      this.error = '';
+
+      // Use bulk removal method for consistency
+      this.userService.removePermissionsFromUser(userId, [permissionId]).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const revokedCount = response.data.revokedPermissions?.length || 0;
+            const totalCount = response.data.totalDirectPermissions;
+            this.success = `Successfully revoked ${revokedCount} permission(s) from user. Remaining direct permissions: ${totalCount}`;
+            this.loadUserPermissions(userId);
+          } else {
+            this.error = response.message || 'Failed to remove permission from user';
+          }
+          this.loadingUserPermissions = false;
+        },
+        error: (error) => {
+          console.error('Error removing permission from user:', error);
+          this.error = 'Failed to remove permission from user. Please try again.';
+          this.loadingUserPermissions = false;
+        }
+      });
+    }
+  }
+
+  // User permission bulk removal methods
+  showRemoveUserPermissionsModal(): void {
+    this.showRemoveUserPermissionsForm = true;
+    this.selectedPermissionsForUserRemoval = [];
+    this.userRemovalReason = '';
+  }
+
+  hideRemoveUserPermissionsModal(): void {
+    this.showRemoveUserPermissionsForm = false;
+    this.selectedPermissionsForUserRemoval = [];
+    this.userRemovalReason = '';
+  }
+
+  toggleUserPermissionRemovalSelection(permissionId: number): void {
+    const index = this.selectedPermissionsForUserRemoval.indexOf(permissionId);
+    if (index > -1) {
+      this.selectedPermissionsForUserRemoval.splice(index, 1);
+    } else {
+      this.selectedPermissionsForUserRemoval.push(permissionId);
+    }
+  }
+
+  isUserPermissionSelectedForRemoval(permissionId: number): boolean {
+    return this.selectedPermissionsForUserRemoval.includes(permissionId);
+  }
+
+  removePermissionsFromUser(): void {
+    if (this.selectedUser && this.selectedPermissionsForUserRemoval.length > 0) {
+      this.loadingUserRemoval = true;
+      this.error = '';
+
+      this.userService.removePermissionsFromUser(
+        this.selectedUser.id, 
+        this.selectedPermissionsForUserRemoval,
+        this.userRemovalReason || undefined
+      ).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const revokedCount = response.data.revokedPermissions?.length || 0;
+            const totalCount = response.data.totalDirectPermissions;
+            
+            this.success = `Successfully revoked ${revokedCount} permission(s) from user. Remaining direct permissions: ${totalCount}`;
+            
+            // Refresh user permission summary
+            this.loadUserPermissions(this.selectedUser!.id);
+            this.hideRemoveUserPermissionsModal();
+          } else {
+            this.error = response.message || 'Failed to revoke permissions from user';
+          }
+          this.loadingUserRemoval = false;
+        },
+        error: (error) => {
+          console.error('Error revoking permissions from user:', error);
+          this.error = 'Failed to revoke permissions from user. Please try again.';
+          this.loadingUserRemoval = false;
+        }
+      });
+    }
+  }
+
+  selectAllCurrentUserPermissions(): void {
+    if (this.userPermissionSummary) {
+      this.selectedPermissionsForUserRemoval = this.userPermissionSummary.directPermissions.map(p => p.id);
+    }
+  }
+
+  deselectAllUserRemovalPermissions(): void {
+    this.selectedPermissionsForUserRemoval = [];
+  }
+
+  // User permission assignment methods
+  showAssignUserPermissionsModal(): void {
+    this.showAssignUserPermissionsForm = true;
+    this.loadAvailablePermissionsForUserAssignment();
+    this.selectedPermissionsForUserAssignment = [];
+    this.userAssignmentReason = '';
+    this.userAssignmentExpiresAt = '';
+  }
+
+  hideAssignUserPermissionsModal(): void {
+    this.showAssignUserPermissionsForm = false;
+    this.availablePermissionsForUserAssignment = [];
+    this.selectedPermissionsForUserAssignment = [];
+    this.userAssignmentReason = '';
+    this.userAssignmentExpiresAt = '';
+  }
+
+  loadAvailablePermissionsForUserAssignment(): void {
+    if (!this.userPermissionSummary) return;
+    
+    // Get permissions that are not already directly assigned to the user
+    const currentDirectPermissionIds = this.userPermissionSummary.directPermissions.map(p => p.id);
+    this.availablePermissionsForUserAssignment = this.permissions.filter(
+      permission => !currentDirectPermissionIds.includes(permission.id)
+    );
+  }
+
+  toggleUserPermissionSelection(permissionId: number): void {
+    const index = this.selectedPermissionsForUserAssignment.indexOf(permissionId);
+    if (index > -1) {
+      this.selectedPermissionsForUserAssignment.splice(index, 1);
+    } else {
+      this.selectedPermissionsForUserAssignment.push(permissionId);
+    }
+  }
+
+  isUserPermissionSelected(permissionId: number): boolean {
+    return this.selectedPermissionsForUserAssignment.includes(permissionId);
+  }
+
+  assignPermissionsToUser(): void {
+    if (this.selectedUser && this.selectedPermissionsForUserAssignment.length > 0) {
+      this.loadingUserAssignment = true;
+      this.error = '';
+
+      this.userService.assignPermissionsToUser(
+        this.selectedUser.id, 
+        this.selectedPermissionsForUserAssignment,
+        this.userAssignmentReason || undefined,
+        this.userAssignmentExpiresAt || undefined
+      ).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const assignedCount = response.data.assignedPermissions.length;
+            const totalCount = response.data.totalDirectPermissions;
+            let successMessage = `Successfully assigned ${assignedCount} permission(s) to user. Total direct permissions: ${totalCount}`;
+            
+            if (response.data.expiresAt) {
+              successMessage += ` (Expires: ${new Date(response.data.expiresAt).toLocaleDateString()})`;
+            }
+            
+            this.success = successMessage;
+            
+            // Refresh user permission summary
+            this.loadUserPermissions(this.selectedUser!.id);
+            this.hideAssignUserPermissionsModal();
+          } else {
+            this.error = response.message || 'Failed to assign permissions to user';
+          }
+          this.loadingUserAssignment = false;
+        },
+        error: (error) => {
+          console.error('Error assigning permissions to user:', error);
+          this.error = 'Failed to assign permissions to user. Please try again.';
+          this.loadingUserAssignment = false;
+        }
+      });
+    }
+  }
+
+  selectAllAvailableUserPermissions(): void {
+    this.selectedPermissionsForUserAssignment = this.availablePermissionsForUserAssignment.map(p => p.id);
+  }
+
+  deselectAllUserPermissions(): void {
+    this.selectedPermissionsForUserAssignment = [];
+  }
+
+  // Helper method to format expiration date for API
+  formatExpirationDate(dateString: string): string {
+    if (!dateString) return '';
+    
+    // Convert local date to ISO string with time
+    const date = new Date(dateString);
+    date.setHours(23, 59, 59, 999); // Set to end of day
+    return date.toISOString();
+  }
+
+  /**
+   * Check if a specific user has a specific permission from any source (direct or role-based)
+   */
+  checkUserHasPermission(userId: string, permissionId: number): Observable<boolean> {
+    return this.userService.userHasPermission(userId, permissionId).pipe(
+      map(response => response.status && response.data)
+    );
+  }
+
+  /**
+   * Check if a specific user has a specific permission directly assigned (not from roles)
+   */
+  checkUserHasDirectPermission(userId: string, permissionId: number): Observable<boolean> {
+    return this.userService.userHasDirectPermission(userId, permissionId).pipe(
+      map(response => response.status && response.data)
+    );
+  }
+
+  /**
+   * Check if user has permission (cached version for UI)
+   */
+  userHasPermissionSync(userId: string, permissionId: number): boolean | null {
+    const cacheKey = `user-${userId}-${permissionId}`;
+    return this.rolePermissionCache.get(cacheKey) ?? null;
+  }
+
+  /**
+   * Preload user permission checks for better UI performance
+   */
+  preloadUserPermissionChecks(userId: string, permissionIds: number[]): void {
+    permissionIds.forEach(permissionId => {
+      const cacheKey = `user-${userId}-${permissionId}`;
+      if (!this.rolePermissionCache.has(cacheKey)) {
+        this.checkUserHasPermission(userId, permissionId).subscribe(hasPermission => {
+          this.rolePermissionCache.set(cacheKey, hasPermission);
+        });
+      }
+    });
+  }
+
+  // Bulk user permission assignment methods
+  showBulkUserAssignmentModal(): void {
+    this.showBulkUserAssignmentForm = true;
+    this.selectedUsersForBulkAssignment = [];
+    this.selectedPermissionsForBulkUserAssignment = [];
+    this.bulkUserAssignmentReason = '';
+    this.bulkUserAssignmentExpiresAt = '';
+  }
+
+  hideBulkUserAssignmentModal(): void {
+    this.showBulkUserAssignmentForm = false;
+    this.selectedUsersForBulkAssignment = [];
+    this.selectedPermissionsForBulkUserAssignment = [];
+    this.bulkUserAssignmentReason = '';
+    this.bulkUserAssignmentExpiresAt = '';
+  }
+
+  toggleUserSelectionForBulkAssignment(userId: string): void {
+    const index = this.selectedUsersForBulkAssignment.indexOf(userId);
+    if (index > -1) {
+      this.selectedUsersForBulkAssignment.splice(index, 1);
+    } else {
+      this.selectedUsersForBulkAssignment.push(userId);
+    }
+  }
+
+  isUserSelectedForBulkAssignment(userId: string): boolean {
+    return this.selectedUsersForBulkAssignment.includes(userId);
+  }
+
+  togglePermissionSelectionForBulkUserAssignment(permissionId: number): void {
+    const index = this.selectedPermissionsForBulkUserAssignment.indexOf(permissionId);
+    if (index > -1) {
+      this.selectedPermissionsForBulkUserAssignment.splice(index, 1);
+    } else {
+      this.selectedPermissionsForBulkUserAssignment.push(permissionId);
+    }
+  }
+
+  isPermissionSelectedForBulkUserAssignment(permissionId: number): boolean {
+    return this.selectedPermissionsForBulkUserAssignment.includes(permissionId);
+  }
+
+  bulkAssignPermissionsToUsers(): void {
+    if (this.selectedUsersForBulkAssignment.length > 0 && this.selectedPermissionsForBulkUserAssignment.length > 0) {
+      this.loadingBulkUserAssignment = true;
+      this.error = '';
+
+      // Convert string user IDs to numbers for API
+      const userIds = this.selectedUsersForBulkAssignment.map(id => parseInt(id));
+
+      this.userService.bulkAssignPermissionsToUsers(
+        userIds,
+        this.selectedPermissionsForBulkUserAssignment,
+        this.bulkUserAssignmentReason || undefined,
+        this.bulkUserAssignmentExpiresAt || undefined
+      ).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const userCount = this.selectedUsersForBulkAssignment.length;
+            const permissionCount = this.selectedPermissionsForBulkUserAssignment.length;
+            const affectedUsers = Object.values(response.data);
+            
+            let successMessage = `Successfully assigned ${permissionCount} permission(s) to ${userCount} user(s). Total assignments processed: ${affectedUsers.length}`;
+            
+            if (this.bulkUserAssignmentExpiresAt) {
+              successMessage += ` (Expires: ${new Date(this.bulkUserAssignmentExpiresAt).toLocaleDateString()})`;
+            }
+            
+            this.success = successMessage;
+            
+            // Refresh users data if we're showing user permissions
+            if (this.showUserPermissions) {
+              this.loadUsers();
+            }
+            
+            this.hideBulkUserAssignmentModal();
+          } else {
+            this.error = response.message || 'Failed to bulk assign permissions to users';
+          }
+          this.loadingBulkUserAssignment = false;
+        },
+        error: (error) => {
+          console.error('Error bulk assigning permissions to users:', error);
+          this.error = 'Failed to bulk assign permissions to users. Please try again.';
+          this.loadingBulkUserAssignment = false;
+        }
+      });
+    }
+  }
+
+  selectAllUsersForBulkAssignment(): void {
+    this.selectedUsersForBulkAssignment = this.filteredUsers.map(u => u.id);
+  }
+
+  deselectAllUsersForBulkAssignment(): void {
+    this.selectedUsersForBulkAssignment = [];
+  }
+
+  selectAllPermissionsForBulkUserAssignment(): void {
+    this.selectedPermissionsForBulkUserAssignment = this.permissions.map(p => p.id);
+  }
+
+  deselectAllPermissionsForBulkUserAssignment(): void {
+    this.selectedPermissionsForBulkUserAssignment = [];
+  }
+
+  // Permission checking methods
+  showPermissionCheckForUser(user: User, permission: Permission): void {
+    this.selectedUserForPermissionCheck = user;
+    this.selectedPermissionForCheck = permission;
+    this.showPermissionCheckModal = true;
+    this.permissionCheckResult = null;
+    this.directPermissionCheckResult = null;
+    this.checkBothPermissionTypes(user.id, permission.id);
+  }
+
+  hidePermissionCheckModal(): void {
+    this.showPermissionCheckModal = false;
+    this.selectedUserForPermissionCheck = null;
+    this.selectedPermissionForCheck = null;
+    this.permissionCheckResult = null;
+    this.directPermissionCheckResult = null;
+    this.loadingPermissionCheck = false;
+    this.loadingDirectPermissionCheck = false;
+  }
+
+  checkSpecificUserPermission(userId: string, permissionId: number): void {
+    this.loadingPermissionCheck = true;
+    this.error = '';
+
+    this.checkUserHasPermission(userId, permissionId).subscribe({
+      next: (hasPermission) => {
+        this.permissionCheckResult = hasPermission;
+        this.loadingPermissionCheck = false;
+      },
+      error: (error) => {
+        console.error('Error checking user permission:', error);
+        this.error = 'Failed to check user permission. Please try again.';
+        this.loadingPermissionCheck = false;
+      }
+    });
+  }
+
+  checkSpecificUserDirectPermission(userId: string, permissionId: number): void {
+    this.loadingDirectPermissionCheck = true;
+    this.error = '';
+
+    this.checkUserHasDirectPermission(userId, permissionId).subscribe({
+      next: (hasDirectPermission) => {
+        this.directPermissionCheckResult = hasDirectPermission;
+        this.loadingDirectPermissionCheck = false;
+      },
+      error: (error) => {
+        console.error('Error checking user direct permission:', error);
+        this.error = 'Failed to check user direct permission. Please try again.';
+        this.loadingDirectPermissionCheck = false;
+      }
+    });
+  }
+
+  checkBothPermissionTypes(userId: string, permissionId: number): void {
+    // Check both permission types simultaneously
+    this.checkSpecificUserPermission(userId, permissionId);
+    this.checkSpecificUserDirectPermission(userId, permissionId);
+  }
+
+  getPermissionCheckResultText(): string {
+    if (this.permissionCheckResult === null) return 'Checking...';
+    return this.permissionCheckResult ? 'User has this permission (any source)' : 'User does not have this permission';
+  }
+
+  getPermissionCheckResultClass(): string {
+    if (this.permissionCheckResult === null) return 'text-warning';
+    return this.permissionCheckResult ? 'text-success' : 'text-danger';
+  }
+
+  getDirectPermissionCheckResultText(): string {
+    if (this.directPermissionCheckResult === null) return 'Checking...';
+    return this.directPermissionCheckResult ? 'User has this permission directly' : 'User does not have this permission directly';
+  }
+
+  getDirectPermissionCheckResultClass(): string {
+    if (this.directPermissionCheckResult === null) return 'text-warning';
+    return this.directPermissionCheckResult ? 'text-success' : 'text-danger';
+  }
+
+  getPermissionSourceAnalysis(): string {
+    if (this.permissionCheckResult === null || this.directPermissionCheckResult === null) {
+      return 'Analyzing permission sources...';
+    }
+
+    if (this.permissionCheckResult && this.directPermissionCheckResult) {
+      return 'User has this permission through direct assignment.';
+    } else if (this.permissionCheckResult && !this.directPermissionCheckResult) {
+      return 'User has this permission through role-based assignment only.';
+    } else if (!this.permissionCheckResult && !this.directPermissionCheckResult) {
+      return 'User does not have this permission from any source.';
+    } else {
+      // This shouldn't happen (direct=true but any=false), but handle it
+      return 'Inconsistent permission state detected.';
+    }
+  }
+
+  // Enhanced user permission loading with preloading
+  loadUserPermissionsWithPreload(userId: string): void {
+    // Load the user permission summary
+    this.loadUserPermissions(userId);
+    
+    // Preload permission checks for all permissions to improve UI responsiveness
+    if (this.permissions.length > 0) {
+      this.preloadUserPermissionChecks(userId, this.permissions.map(p => p.id));
+    }
+  }
+
+  // Helper to get permission check status for UI
+  getUserPermissionStatus(userId: string, permissionId: number): 'has' | 'not-has' | 'checking' {
+    const cached = this.userHasPermissionSync(userId, permissionId);
+    if (cached === null) return 'checking';
+    return cached ? 'has' : 'not-has';
+  }
+
+  // Helper to get permission status icon
+  getPermissionStatusIcon(userId: string, permissionId: number): string {
+    const status = this.getUserPermissionStatus(userId, permissionId);
+    switch (status) {
+      case 'has': return '✓';
+      case 'not-has': return '✗';
+      default: return '?';
+    }
+  }
+
+  // Helper to get permission status class
+  getPermissionStatusClass(userId: string, permissionId: number): string {
+    const status = this.getUserPermissionStatus(userId, permissionId);
+    switch (status) {
+      case 'has': return 'text-success';
+      case 'not-has': return 'text-danger';
+      default: return 'text-warning';
+    }
   }
 }

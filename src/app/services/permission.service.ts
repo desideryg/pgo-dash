@@ -140,4 +140,11 @@ export class PermissionService {
   getAvailablePermissions(): Observable<AvailablePermissionsResponse> {
     return this.http.get<AvailablePermissionsResponse>(`${this.API_URL}/admin/v1/permissions/available`);
   }
+
+  /**
+   * Get all users who have a specific permission directly assigned
+   */
+  getUsersWithDirectPermission(permissionId: number): Observable<ApiResponse<any[]>> {
+    return this.http.get<ApiResponse<any[]>>(`${this.API_URL}/admin/v1/permissions/${permissionId}/users`);
+  }
 }

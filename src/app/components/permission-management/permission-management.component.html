@@ -53,7 +53,10 @@
           placeholder="e.g., custom:user:view (leave empty for auto-generation)"
           (blur)="checkPermissionExists()"
           [class.error]="createPermissionForm.get('name')?.invalid && createPermissionForm.get('name')?.touched">
-        <small class="form-text">If provided, this custom name will be used instead of auto-generating from action + resource</small>
+        <small class="form-text">
+          If provided, this custom name will be used instead of auto-generating from action + resource. 
+          <strong>Note:</strong> Avoid using role names like SUPER_ADMIN, MERCHANT_ADMIN, etc.
+        </small>
         <div class="error-text" *ngIf="createPermissionForm.get('name')?.invalid && createPermissionForm.get('name')?.touched">
           <span *ngIf="createPermissionForm.get('name')?.errors?.['exists']">A permission with this name already exists</span>
         </div>
@@ -117,17 +120,74 @@
       </div>
 
       <div class="form-group" *ngIf="createPermissionForm.get('scopeType')?.value !== 'GLOBAL'">
-        <label for="scopeId">Scope ID *</label>
+        <label for="scopeEntity">Select {{ createPermissionForm.get('scopeType')?.value }} *</label>
+        
+        <!-- Merchant Selection -->
+        <div *ngIf="createPermissionForm.get('scopeType')?.value === 'MERCHANT'">
+          <select 
+            id="merchantSelect"
+            class="form-control"
+            (change)="onEntitySelected('MERCHANT', $event)"
+            [disabled]="loadingMerchants">
+            <option value="">-- Select Merchant --</option>
+            <option *ngFor="let merchant of availableMerchants" [value]="merchant.uid">
+              {{ merchant.name }} ({{ merchant.uid }})
+            </option>
+          </select>
+          <div class="loading-text" *ngIf="loadingMerchants">
+            <small>Loading merchants...</small>
+          </div>
+        </div>
+        
+        <!-- User Selection -->
+        <div *ngIf="createPermissionForm.get('scopeType')?.value === 'USER'">
+          <select 
+            id="userSelect"
+            class="form-control"
+            (change)="onEntitySelected('USER', $event)"
+            [disabled]="loadingUsers">
+            <option value="">-- Select User --</option>
+            <option *ngFor="let user of users" [value]="user.uid">
+              {{ user.firstName }} {{ user.lastName }} ({{ user.username }}) - {{ user.uid }}
+            </option>
+          </select>
+          <div class="loading-text" *ngIf="loadingUsers">
+            <small>Loading users...</small>
+          </div>
+        </div>
+        
+        <!-- Generated Scope ID Display -->
+        <div class="generated-scope-id" *ngIf="createPermissionForm.get('scopeId')?.value">
+          <label>Generated Scope ID:</label>
+          <div class="scope-id-display">
+            <code>{{ createPermissionForm.get('scopeId')?.value }}</code>
+            <button type="button" class="btn btn-sm btn-outline" (click)="clearScopeId()" title="Clear selection">
+              ×
+            </button>
+          </div>
+        </div>
+        
+        <!-- Manual Input Fallback -->
+        <div class="manual-input-toggle" *ngIf="!createPermissionForm.get('scopeId')?.value">
+          <button type="button" class="btn btn-sm btn-secondary" (click)="toggleManualScopeInput()">
+            {{ showManualScopeInput ? 'Use Selection' : 'Enter Manually' }}
+          </button>
+        </div>
+        
+        <div *ngIf="showManualScopeInput && !createPermissionForm.get('scopeId')?.value">
         <input
           type="text"
           id="scopeId"
           formControlName="scopeId"
           class="form-control"
-          placeholder="e.g., merchant123 or user456"
+            [placeholder]="getScopeIdPlaceholder()"
           [class.error]="createPermissionForm.get('scopeId')?.invalid && createPermissionForm.get('scopeId')?.touched">
-        <small class="form-text">Specific ID for scoped permissions</small>
+        </div>
+        
+        <small class="form-text">{{ getScopeIdHelpText() }}</small>
         <div class="error-text" *ngIf="createPermissionForm.get('scopeId')?.invalid && createPermissionForm.get('scopeId')?.touched">
           <span *ngIf="createPermissionForm.get('scopeId')?.errors?.['required']">Scope ID is required for non-global permissions</span>
+          <span *ngIf="createPermissionForm.get('scopeId')?.errors?.['pattern']">Invalid scope ID format</span>
         </div>
       </div>
 
@@ -230,7 +290,7 @@
         
         <div class="detail-item" *ngIf="selectedPermission.scopeId">
           <label>Scope ID</label>
-          <span class="value">{{ selectedPermission.scopeId }}</span>
+          <span class="value scope-id-formatted">{{ formatScopeId(selectedPermission.scopeId) }}</span>
         </div>
         
         <div class="detail-item">
@@ -314,6 +374,12 @@
     <button class="btn btn-primary" (click)="showBulkAssignmentModal()">
       🔄 Bulk Assign
     </button>
+    <button class="btn btn-success" (click)="toggleUserPermissions()">
+      {{ showUserPermissions ? 'Hide' : 'Show' }} User Permissions
+    </button>
+    <button class="btn btn-info" (click)="showBulkUserAssignmentModal()">
+      👥 Bulk User Assign
+    </button>
   </div>
   
   <!-- Advanced Filters -->
@@ -325,7 +391,7 @@
         id="scopeIdFilter"
         [(ngModel)]="scopeIdFilter"
         (input)="applyFilters()"
-        placeholder="e.g., merchant123, user456"
+        placeholder="e.g., merchant:01ARZ3NDEKTSV4RRFFQ69G5FAV, user:01ARZ3NDEKTSV4RRFFQ69G5FAV"
         class="form-control">
       <small class="form-text">Filter scoped permissions by specific merchant or user ID</small>
     </div>
@@ -1024,6 +1090,838 @@
   </div>
 </div>
 
+<!-- User Permissions Section -->
+<div class="user-permissions-section" *ngIf="showUserPermissions">
+  <div class="section-header">
+    <h3>User Direct Permissions</h3>
+    <p>View and manage direct permissions assigned to individual users (separate from role-based permissions).</p>
+  </div>
+  
+  <!-- User Search and Filters -->
+  <div class="user-filters-section">
+    <div class="user-search-container">
+      <div class="search-input-group">
+        <span class="search-icon">👤</span>
+        <input
+          type="text"
+          [(ngModel)]="userSearchTerm"
+          (input)="applyUserFilters()"
+          placeholder="Search users by name, email, username, or UID..."
+          class="search-input">
+        <button 
+          *ngIf="userSearchTerm" 
+          class="clear-search"
+          (click)="userSearchTerm = ''; applyUserFilters()">
+          ×
+        </button>
+      </div>
+    </div>
+    
+    <div class="user-filter-controls">
+      <select [(ngModel)]="selectedUserStatus" (change)="applyUserFilters()" class="filter-select">
+        <option value="">All Users</option>
+        <option value="active">Active Users</option>
+        <option value="inactive">Inactive Users</option>
+        <option value="locked">Locked Users</option>
+      </select>
+      
+      <button class="btn btn-outline" (click)="clearUserFilters()">Clear Filters</button>
+    </div>
+    
+    <div class="user-results-info">
+      <span>{{ filteredUsers.length }} of {{ users.length }} users</span>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-container" *ngIf="loadingUsers">
+    <div class="spinner-large"></div>
+    <p>Loading users...</p>
+  </div>
+
+  <!-- Users Table -->
+  <div class="table-container" *ngIf="!loadingUsers && filteredUsers.length > 0">
+    <table class="data-table users-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Username</th>
+          <th>UID</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let user of filteredUsers" class="user-row">
+          <td>
+            <div class="user-name">
+              <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+              <small class="display-name" *ngIf="user.displayName">{{ user.displayName }}</small>
+            </div>
+          </td>
+          <td>
+            <span class="user-email">{{ user.email }}</span>
+          </td>
+          <td>
+            <span class="username">{{ user.username }}</span>
+          </td>
+          <td>
+            <span class="user-uid">{{ user.uid }}</span>
+          </td>
+          <td>
+            <div class="user-status">
+              <span class="status-badge" [class.active]="user.active">
+                {{ user.active ? 'Active' : 'Inactive' }}
+              </span>
+              <span class="status-badge" [class.locked]="user.locked" *ngIf="user.locked">
+                Locked
+              </span>
+            </div>
+          </td>
+          <td class="actions-cell">
+            <div class="action-buttons">
+              <button 
+                class="btn btn-sm btn-primary"
+                (click)="viewUserPermissions(user)"
+                [disabled]="loadingUsers"
+                title="View direct permissions">
+                👤 Permissions
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- No Users Message -->
+  <div class="no-data" *ngIf="!loadingUsers && filteredUsers.length === 0 && users.length > 0">
+    <div class="no-data-icon">🔍</div>
+    <h3>No users found</h3>
+    <p>No users match your search criteria.</p>
+    <button class="btn btn-secondary" (click)="clearUserFilters()">Clear Filters</button>
+  </div>
+
+  <!-- No Users at All -->
+  <div class="no-data" *ngIf="!loadingUsers && users.length === 0">
+    <div class="no-data-icon">👥</div>
+    <h3>No users available</h3>
+    <p>No users have been created in the system yet.</p>
+  </div>
+</div>
+
+<!-- User Permission Summary Modal -->
+<div class="modal-overlay" *ngIf="showUserPermissionModal" (click)="hideUserPermissionModal()">
+  <div class="modal-content modal-extra-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Permission Summary for: {{ selectedUser?.firstName }} {{ selectedUser?.lastName }}</h2>
+      <button class="close-btn" (click)="hideUserPermissionModal()">×</button>
+    </div>
+    
+    <div class="user-permission-content">
+      <!-- User Info Banner with Statistics -->
+      <div class="user-info-banner" *ngIf="selectedUser && userPermissionSummary">
+        <div class="user-details">
+          <h4>{{ userPermissionSummary.userFullName }}</h4>
+          <p>{{ userPermissionSummary.userEmail }}</p>
+          <div class="user-meta">
+            <span class="user-uid">{{ selectedUser.uid }}</span>
+            <span class="status-badge" [class.active]="selectedUser.active">
+              {{ selectedUser.active ? 'Active' : 'Inactive' }}
+            </span>
+            <span class="status-badge" [class.locked]="selectedUser.locked" *ngIf="selectedUser.locked">
+              Locked
+            </span>
+          </div>
+        </div>
+        <div class="permission-stats">
+          <div class="stat-item">
+            <span class="stat-number">{{ userPermissionSummary.totalUniquePermissions }}</span>
+            <span class="stat-label">Total Permissions</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">{{ userPermissionSummary.roleBasedPermissionCount }}</span>
+            <span class="stat-label">From Roles</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">{{ userPermissionSummary.directPermissionCount }}</span>
+            <span class="stat-label">Direct</span>
+          </div>
+        </div>
+        <div class="user-actions-header">
+          <button 
+            class="btn btn-success"
+            (click)="showAssignUserPermissionsModal()"
+            [disabled]="loadingUserPermissions">
+            ➕ Assign Direct Permissions
+          </button>
+          <button 
+            class="btn btn-warning"
+            (click)="showRemoveUserPermissionsModal()"
+            [disabled]="loadingUserPermissions || !hasDirectPermissions()">
+            ➖ Remove Direct Permissions
+          </button>
+          <button 
+            class="btn btn-info"
+            (click)="loadUserPermissionsWithPreload(selectedUser!.id)"
+            [disabled]="loadingUserPermissions"
+            title="Refresh and check all permission statuses">
+            🔄 Refresh Permission Checks
+          </button>
+        </div>
+      </div>
+      
+      <!-- User Roles Section -->
+      <div class="user-roles-section" *ngIf="userPermissionSummary && userPermissionSummary.assignedRoles.length > 0">
+        <h4>Assigned Roles ({{ userPermissionSummary.assignedRoles.length }})</h4>
+        <div class="roles-list">
+          <div *ngFor="let role of userPermissionSummary.assignedRoles" class="role-chip">
+            <strong>{{ role.displayName || role.name }}</strong>
+            <small>{{ role.name }}</small>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Permission Tabs -->
+      <div class="permission-tabs" *ngIf="userPermissionSummary">
+        <button 
+          class="tab-button"
+          [class.active]="isActiveTab('all')"
+          (click)="setActivePermissionTab('all')">
+          {{ getTabTitle('all') }}
+        </button>
+        <button 
+          class="tab-button"
+          [class.active]="isActiveTab('role-based')"
+          (click)="setActivePermissionTab('role-based')">
+          {{ getTabTitle('role-based') }}
+        </button>
+        <button 
+          class="tab-button"
+          [class.active]="isActiveTab('direct')"
+          (click)="setActivePermissionTab('direct')">
+          {{ getTabTitle('direct') }}
+        </button>
+      </div>
+      
+      <!-- Loading State -->
+      <div class="loading-container" *ngIf="loadingUserPermissions">
+        <div class="spinner-large"></div>
+        <p>Loading user permission summary...</p>
+      </div>
+      
+      <!-- Permissions Table -->
+      <div class="table-container" *ngIf="!loadingUserPermissions && userPermissionSummary && getActivePermissions().length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Permission Name</th>
+              <th>Action</th>
+              <th>Resource</th>
+              <th>Scope</th>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let permission of getActivePermissions(); trackBy: trackByPermissionId">
+              <td>
+                <div class="permission-name">
+                  <strong>{{ permission.name }}</strong>
+                  <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                </div>
+              </td>
+              <td>
+                <span class="badge" [ngClass]="getActionClass(permission.action)">
+                  {{ permission.action }}
+                </span>
+              </td>
+              <td>{{ permission.resource }}</td>
+              <td>
+                <div class="scope-info">
+                  <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+                    {{ permission.scopeType }}
+                  </span>
+                  <small *ngIf="permission.scopeId" class="scope-id">{{ permission.scopeId }}</small>
+                </div>
+              </td>
+              <td class="description-cell" [title]="permission.description">
+                {{ permission.description }}
+              </td>
+              <td class="status-cell">
+                <div class="permission-status">
+                  <span 
+                    class="status-indicator"
+                    [ngClass]="getPermissionStatusClass(selectedUser!.id, permission.id)"
+                    [title]="getUserPermissionStatus(selectedUser!.id, permission.id) === 'has' ? 'User has this permission from any source' : getUserPermissionStatus(selectedUser!.id, permission.id) === 'not-has' ? 'User does not have this permission' : 'Checking permission...'">
+                    {{ getPermissionStatusIcon(selectedUser!.id, permission.id) }}
+                  </span>
+                  <small class="status-text" [ngClass]="getPermissionStatusClass(selectedUser!.id, permission.id)">
+                    {{ getUserPermissionStatus(selectedUser!.id, permission.id) === 'has' ? 'Has' : getUserPermissionStatus(selectedUser!.id, permission.id) === 'not-has' ? 'No Access' : 'Checking...' }}
+                  </small>
+                </div>
+              </td>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button 
+                    class="btn btn-sm btn-outline"
+                    (click)="showPermissionDetails(permission)"
+                    [disabled]="loadingUserPermissions"
+                    title="View details">
+                    👁️
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-info"
+                    (click)="showPermissionCheckForUser(selectedUser!, permission)"
+                    [disabled]="loadingUserPermissions"
+                    title="Check if user has this permission from any source">
+                    🔍
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-danger"
+                    (click)="removePermissionFromUser(selectedUser!.id, permission.id)"
+                    [disabled]="loadingUserPermissions || isRoleBasedTab()"
+                    [title]="getRemoveButtonTitle()"
+                    *ngIf="canRemovePermission()">
+                    🗑️
+                  </button>
+                  <span 
+                    class="permission-source"
+                    *ngIf="isAllTab()">
+                    <small class="source-badge" 
+                          [class.role-based]="isRoleBasedPermission(permission.id)"
+                          [class.direct]="isDirectPermission(permission.id)">
+                      {{ getPermissionSourceLabel(permission.id) }}
+                    </small>
+                  </span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- No Permissions Message -->
+      <div class="no-data" *ngIf="!loadingUserPermissions && userPermissionSummary && getActivePermissions().length === 0">
+        <div class="no-data-icon">👤</div>
+        <h3>No {{ isAllTab() ? '' : activePermissionTab }} permissions</h3>
+        <p>{{ getNoPermissionsMessage() }}</p>
+      </div>
+      
+      <!-- No Summary Available -->
+      <div class="no-data" *ngIf="!loadingUserPermissions && !userPermissionSummary">
+        <div class="no-data-icon">⚠️</div>
+        <h3>Unable to load permission summary</h3>
+        <p>Could not retrieve permission information for this user.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assign User Permissions Modal -->
+<div class="modal-overlay" *ngIf="showAssignUserPermissionsForm" (click)="hideAssignUserPermissionsModal()">
+  <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Assign Direct Permissions to {{ selectedUser?.firstName }} {{ selectedUser?.lastName }}</h2>
+      <button class="close-btn" (click)="hideAssignUserPermissionsModal()">×</button>
+    </div>
+    
+    <div class="assign-user-permissions-content">
+      <!-- Assignment Info -->
+      <div class="user-assignment-info">
+        <div class="info-item">
+          <label>User:</label>
+          <span class="user-name">{{ selectedUser?.firstName }} {{ selectedUser?.lastName }}</span>
+        </div>
+        <div class="info-item">
+          <label>Email:</label>
+          <span class="user-email">{{ selectedUser?.email }}</span>
+        </div>
+        <div class="info-item">
+          <label>Current Direct Permissions:</label>
+          <span class="permission-count">{{ userPermissionSummary?.directPermissionCount || 0 }}</span>
+        </div>
+        <div class="info-item">
+          <label>Available to Assign:</label>
+          <span class="permission-count">{{ availablePermissionsForUserAssignment.length }}</span>
+        </div>
+      </div>
+
+      <!-- Reason Input -->
+      <div class="form-group">
+        <label for="userAssignmentReason">Reason for Assignment (Optional)</label>
+        <textarea
+          id="userAssignmentReason"
+          [(ngModel)]="userAssignmentReason"
+          class="form-control"
+          rows="2"
+          placeholder="e.g., Emergency access for system maintenance"
+          [disabled]="loadingUserAssignment"></textarea>
+        <small class="form-text">Provide a reason for this permission assignment for audit purposes</small>
+      </div>
+
+      <!-- Expiration Date Input -->
+      <div class="form-group">
+        <label for="userAssignmentExpiresAt">Expiration Date (Optional)</label>
+        <input
+          type="date"
+          id="userAssignmentExpiresAt"
+          [(ngModel)]="userAssignmentExpiresAt"
+          class="form-control"
+          [disabled]="loadingUserAssignment"
+          [min]="todayDate">
+        <small class="form-text">Set an expiration date for temporary permission assignments</small>
+      </div>
+
+      <!-- Selection Controls -->
+      <div class="selection-controls">
+        <div class="selection-info">
+          <span>{{ selectedPermissionsForUserAssignment.length }} of {{ availablePermissionsForUserAssignment.length }} permissions selected</span>
+        </div>
+        <div class="selection-actions">
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="selectAllAvailableUserPermissions()"
+            [disabled]="loadingUserAssignment || availablePermissionsForUserAssignment.length === 0">
+            Select All
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="deselectAllUserPermissions()"
+            [disabled]="loadingUserAssignment || selectedPermissionsForUserAssignment.length === 0">
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <!-- Available Permissions List -->
+      <div class="available-user-permissions-list" *ngIf="availablePermissionsForUserAssignment.length > 0">
+        <div class="permissions-grid">
+          <div 
+            *ngFor="let permission of availablePermissionsForUserAssignment" 
+            class="permission-checkbox-card"
+            [class.selected]="isUserPermissionSelected(permission.id)"
+            (click)="toggleUserPermissionSelection(permission.id)">
+            
+            <div class="checkbox-container">
+              <input 
+                type="checkbox"
+                [checked]="isUserPermissionSelected(permission.id)"
+                (click)="$event.stopPropagation()"
+                (change)="toggleUserPermissionSelection(permission.id)"
+                [disabled]="loadingUserAssignment">
+            </div>
+            
+            <div class="permission-info">
+              <div class="permission-header">
+                <strong>{{ permission.name }}</strong>
+                <div class="permission-badges">
+                  <span class="badge" [ngClass]="getActionClass(permission.action)">
+                    {{ permission.action }}
+                  </span>
+                  <span class="badge resource-badge">
+                    {{ permission.resource }}
+                  </span>
+                  <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+                    {{ permission.scopeType }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="permission-details">
+                <p class="description">{{ permission.description }}</p>
+                <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                <small *ngIf="permission.scopeId" class="scope-id">Scope: {{ permission.scopeId }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Available Permissions -->
+      <div class="no-data" *ngIf="availablePermissionsForUserAssignment.length === 0">
+        <div class="no-data-icon">✅</div>
+        <h3>All permissions assigned</h3>
+        <p>This user already has all available permissions assigned directly.</p>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="hideAssignUserPermissionsModal()"
+          [disabled]="loadingUserAssignment">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-success" 
+          (click)="assignPermissionsToUser()"
+          [disabled]="loadingUserAssignment || selectedPermissionsForUserAssignment.length === 0">
+          <span *ngIf="loadingUserAssignment" class="spinner"></span>
+          {{ loadingUserAssignment ? 'Assigning...' : 'Assign ' + selectedPermissionsForUserAssignment.length + ' Permission(s)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Remove User Permissions Modal -->
+<div class="modal-overlay" *ngIf="showRemoveUserPermissionsForm" (click)="hideRemoveUserPermissionsModal()">
+  <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Remove Direct Permissions from {{ selectedUser?.firstName }} {{ selectedUser?.lastName }}</h2>
+      <button class="close-btn" (click)="hideRemoveUserPermissionsModal()">×</button>
+    </div>
+    
+    <div class="remove-user-permissions-content">
+      <!-- Removal Info -->
+      <div class="user-removal-info">
+        <div class="info-item">
+          <label>User:</label>
+          <span class="user-name">{{ selectedUser?.firstName }} {{ selectedUser?.lastName }}</span>
+        </div>
+        <div class="info-item">
+          <label>Email:</label>
+          <span class="user-email">{{ selectedUser?.email }}</span>
+        </div>
+        <div class="info-item">
+          <label>Current Direct Permissions:</label>
+          <span class="permission-count">{{ getDirectPermissionCount() }}</span>
+        </div>
+        <div class="info-item">
+          <label>Selected for Removal:</label>
+          <span class="permission-count danger">{{ selectedPermissionsForUserRemoval.length }}</span>
+        </div>
+      </div>
+
+      <!-- Warning Banner -->
+      <div class="warning-banner">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+          <h4>Direct Permission Removal Warning</h4>
+          <p>Removing direct permissions will immediately revoke access for this user. Role-based permissions will remain unchanged. This action will be logged for audit purposes.</p>
+        </div>
+      </div>
+
+      <!-- Reason Input -->
+      <div class="form-group">
+        <label for="userRemovalReason">Reason for Removal (Optional)</label>
+        <textarea
+          id="userRemovalReason"
+          [(ngModel)]="userRemovalReason"
+          class="form-control"
+          rows="2"
+          placeholder="e.g., Emergency access no longer needed"
+          [disabled]="loadingUserRemoval"></textarea>
+        <small class="form-text">Provide a reason for this permission removal for audit purposes</small>
+      </div>
+
+      <!-- Selection Controls -->
+      <div class="selection-controls">
+        <div class="selection-info">
+          <span>{{ selectedPermissionsForUserRemoval.length }} of {{ getDirectPermissionCount() }} direct permissions selected for removal</span>
+        </div>
+        <div class="selection-actions">
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="selectAllCurrentUserPermissions()"
+            [disabled]="loadingUserRemoval || !hasDirectPermissions()">
+            Select All
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="deselectAllUserRemovalPermissions()"
+            [disabled]="loadingUserRemoval || selectedPermissionsForUserRemoval.length === 0">
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <!-- Current Direct Permissions List -->
+      <div class="current-user-permissions-list" *ngIf="hasDirectPermissions()">
+        <div class="permissions-grid">
+          <div 
+            *ngFor="let permission of getUserDirectPermissions()" 
+            class="permission-checkbox-card removal-card"
+            [class.selected]="isUserPermissionSelectedForRemoval(permission.id)"
+            (click)="toggleUserPermissionRemovalSelection(permission.id)">
+            
+            <div class="checkbox-container">
+              <input 
+                type="checkbox"
+                [checked]="isUserPermissionSelectedForRemoval(permission.id)"
+                (click)="$event.stopPropagation()"
+                (change)="toggleUserPermissionRemovalSelection(permission.id)"
+                [disabled]="loadingUserRemoval">
+            </div>
+            
+            <div class="permission-info">
+              <div class="permission-header">
+                <strong>{{ permission.name }}</strong>
+                <div class="permission-badges">
+                  <span class="badge" [ngClass]="getActionClass(permission.action)">
+                    {{ permission.action }}
+                  </span>
+                  <span class="badge resource-badge">
+                    {{ permission.resource }}
+                  </span>
+                  <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+                    {{ permission.scopeType }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="permission-details">
+                <p class="description">{{ permission.description }}</p>
+                <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                <small *ngIf="permission.scopeId" class="scope-id">Scope: {{ permission.scopeId }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Direct Permissions Message -->
+      <div class="no-data" *ngIf="!hasDirectPermissions()">
+        <div class="no-data-icon">🔐</div>
+        <h3>No direct permissions to remove</h3>
+        <p>This user currently has no direct permissions assigned.</p>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="hideRemoveUserPermissionsModal()"
+          [disabled]="loadingUserRemoval">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-danger" 
+          (click)="removePermissionsFromUser()"
+          [disabled]="loadingUserRemoval || selectedPermissionsForUserRemoval.length === 0">
+          <span *ngIf="loadingUserRemoval" class="spinner"></span>
+          {{ loadingUserRemoval ? 'Removing...' : 'Remove ' + selectedPermissionsForUserRemoval.length + ' Permission(s)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk User Assignment Modal -->
+<div class="modal-overlay" *ngIf="showBulkUserAssignmentForm" (click)="hideBulkUserAssignmentModal()">
+  <div class="modal-content modal-extra-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Bulk Assign Permissions to Multiple Users</h2>
+      <button class="close-btn" (click)="hideBulkUserAssignmentModal()">×</button>
+    </div>
+    
+    <div class="bulk-user-assignment-content">
+      <!-- Assignment Summary -->
+      <div class="bulk-assignment-summary">
+        <div class="summary-item">
+          <label>Selected Users:</label>
+          <span class="count-badge users">{{ selectedUsersForBulkAssignment.length }}</span>
+        </div>
+        <div class="summary-item">
+          <label>Selected Permissions:</label>
+          <span class="count-badge permissions">{{ selectedPermissionsForBulkUserAssignment.length }}</span>
+        </div>
+        <div class="summary-item">
+          <label>Total Operations:</label>
+          <span class="count-badge total">{{ selectedUsersForBulkAssignment.length * selectedPermissionsForBulkUserAssignment.length }}</span>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="info-banner">
+        <div class="info-icon">👥</div>
+        <div class="info-content">
+          <h4>Bulk User Permission Assignment</h4>
+          <p>This will assign the selected permissions directly to all selected users. Existing permissions will be preserved.</p>
+        </div>
+      </div>
+
+      <!-- Reason and Expiration Inputs -->
+      <div class="form-row">
+        <div class="form-group">
+          <label for="bulkUserAssignmentReason">Reason for Assignment (Optional)</label>
+          <textarea
+            id="bulkUserAssignmentReason"
+            [(ngModel)]="bulkUserAssignmentReason"
+            class="form-control"
+            rows="2"
+            placeholder="e.g., Emergency access for incident response team"
+            [disabled]="loadingBulkUserAssignment"></textarea>
+          <small class="form-text">Provide a reason for this bulk assignment for audit purposes</small>
+        </div>
+        
+        <div class="form-group">
+          <label for="bulkUserAssignmentExpiresAt">Expiration Date (Optional)</label>
+          <input
+            type="date"
+            id="bulkUserAssignmentExpiresAt"
+            [(ngModel)]="bulkUserAssignmentExpiresAt"
+            class="form-control"
+            [disabled]="loadingBulkUserAssignment"
+            [min]="todayDate">
+          <small class="form-text">Set expiration date for temporary access</small>
+        </div>
+      </div>
+
+      <!-- Selection Grid -->
+      <div class="bulk-user-selection-grid">
+        <!-- Users Selection -->
+        <div class="selection-section">
+          <div class="section-header">
+            <h3>Select Users ({{ selectedUsersForBulkAssignment.length }}/{{ filteredUsers.length }})</h3>
+            <div class="selection-controls">
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="selectAllUsersForBulkAssignment()"
+                [disabled]="loadingBulkUserAssignment">
+                Select All
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="deselectAllUsersForBulkAssignment()"
+                [disabled]="loadingBulkUserAssignment">
+                Deselect All
+              </button>
+            </div>
+          </div>
+          
+          <div class="items-grid users-grid">
+            <div 
+              *ngFor="let user of filteredUsers" 
+              class="selection-card user-card"
+              [class.selected]="isUserSelectedForBulkAssignment(user.id)"
+              (click)="toggleUserSelectionForBulkAssignment(user.id)">
+              
+              <div class="checkbox-container">
+                <input 
+                  type="checkbox"
+                  [checked]="isUserSelectedForBulkAssignment(user.id)"
+                  (click)="$event.stopPropagation()"
+                  (change)="toggleUserSelectionForBulkAssignment(user.id)"
+                  [disabled]="loadingBulkUserAssignment">
+              </div>
+              
+              <div class="item-info">
+                <div class="item-header">
+                  <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+                  <small class="item-code">{{ user.email }}</small>
+                </div>
+                <div class="item-description">
+                  <p>{{ user.username }} • {{ user.uid }}</p>
+                  <div class="user-status">
+                    <span class="status-badge" [class.active]="user.active">
+                      {{ user.active ? 'Active' : 'Inactive' }}
+                    </span>
+                    <span class="status-badge" [class.locked]="user.locked" *ngIf="user.locked">
+                      Locked
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permissions Selection -->
+        <div class="selection-section">
+          <div class="section-header">
+            <h3>Select Permissions ({{ selectedPermissionsForBulkUserAssignment.length }}/{{ permissions.length }})</h3>
+            <div class="selection-controls">
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="selectAllPermissionsForBulkUserAssignment()"
+                [disabled]="loadingBulkUserAssignment">
+                Select All
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="deselectAllPermissionsForBulkUserAssignment()"
+                [disabled]="loadingBulkUserAssignment">
+                Deselect All
+              </button>
+            </div>
+          </div>
+          
+          <div class="items-grid permissions-grid">
+            <div 
+              *ngFor="let permission of permissions" 
+              class="selection-card permission-card"
+              [class.selected]="isPermissionSelectedForBulkUserAssignment(permission.id)"
+              (click)="togglePermissionSelectionForBulkUserAssignment(permission.id)">
+              
+              <div class="checkbox-container">
+                <input 
+                  type="checkbox"
+                  [checked]="isPermissionSelectedForBulkUserAssignment(permission.id)"
+                  (click)="$event.stopPropagation()"
+                  (change)="togglePermissionSelectionForBulkUserAssignment(permission.id)"
+                  [disabled]="loadingBulkUserAssignment">
+              </div>
+              
+              <div class="item-info">
+                <div class="item-header">
+                  <strong>{{ permission.name }}</strong>
+                  <div class="permission-badges">
+                    <span class="badge" [ngClass]="getActionClass(permission.action)">
+                      {{ permission.action }}
+                    </span>
+                    <span class="badge resource-badge">
+                      {{ permission.resource }}
+                    </span>
+                  </div>
+                </div>
+                <div class="item-description">
+                  <p>{{ permission.description }}</p>
+                  <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="hideBulkUserAssignmentModal()"
+          [disabled]="loadingBulkUserAssignment">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-info" 
+          (click)="bulkAssignPermissionsToUsers()"
+          [disabled]="loadingBulkUserAssignment || selectedUsersForBulkAssignment.length === 0 || selectedPermissionsForBulkUserAssignment.length === 0">
+          <span *ngIf="loadingBulkUserAssignment" class="spinner"></span>
+          {{ loadingBulkUserAssignment ? 'Processing...' : 'Assign to ' + selectedUsersForBulkAssignment.length + ' User(s)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Permission Roles Modal -->
 <div class="modal-overlay" *ngIf="showPermissionRolesModal" (click)="hidePermissionRolesModal()">
   <div class="modal-content modal-extra-large" (click)="$event.stopPropagation()">
@@ -1191,6 +2089,13 @@
               title="View roles with this permission">
               👥
             </button>
+            <button 
+              class="btn btn-sm btn-success"
+              (click)="showPermissionUsers(permission)"
+              [disabled]="loading"
+              title="View users with direct permission">
+              👤
+            </button>
           </div>
         </td>
       </tr>
@@ -1240,5 +2145,217 @@
       (click)="onPageChange(currentPage + 1)">
       Next →
     </button>
+  </div>
+</div>
+
+<!-- Permission Users Modal -->
+<div class="modal-overlay" *ngIf="showPermissionUsersModal" (click)="hidePermissionUsersModal()">
+  <div class="modal-content modal-extra-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Users with Direct Permission: {{ selectedPermissionForUsers?.name }}</h2>
+      <button class="close-btn" (click)="hidePermissionUsersModal()">×</button>
+    </div>
+    
+    <div class="permission-users-content">
+      <!-- Permission Info Banner -->
+      <div class="permission-info-banner" *ngIf="selectedPermissionForUsers">
+        <div class="permission-details">
+          <h4>{{ selectedPermissionForUsers.name }}</h4>
+          <p><strong>Action:</strong> {{ selectedPermissionForUsers.action }}</p>
+          <p><strong>Resource:</strong> {{ selectedPermissionForUsers.resource }}</p>
+          <p><strong>Scope:</strong> {{ selectedPermissionForUsers.scopeType }}
+            <span *ngIf="selectedPermissionForUsers.scopeId"> ({{ selectedPermissionForUsers.scopeId }})</span>
+          </p>
+          <p><strong>Description:</strong> {{ selectedPermissionForUsers.description }}</p>
+        </div>
+        <div class="permission-stats">
+          <div class="stat-item">
+            <span class="stat-number">{{ permissionUsers.length }}</span>
+            <span class="stat-label">Direct Users</span>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Loading State -->
+      <div class="loading-container" *ngIf="loadingPermissionUsers">
+        <div class="spinner-large"></div>
+        <p>Loading users with direct permission...</p>
+      </div>
+      
+      <!-- Users Table -->
+      <div class="table-container" *ngIf="!loadingPermissionUsers && permissionUsers.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Roles</th>
+              <th>Status</th>
+              <th>Last Login</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let user of permissionUsers">
+              <td>
+                <div class="user-name">
+                  <strong>{{ user.firstName }} {{ user.lastName }}</strong>
+                  <small>{{ user.displayName }}</small>
+                </div>
+              </td>
+              <td>
+                <span class="username">{{ user.username }}</span>
+                <small class="uid">{{ user.uid }}</small>
+              </td>
+              <td>{{ user.email }}</td>
+              <td>
+                <div class="user-roles">
+                  <span *ngFor="let role of user.roles" class="role-badge">{{ role }}</span>
+                </div>
+              </td>
+              <td>
+                <div class="user-status">
+                  <span class="status-badge" [class.active]="user.active && !user.locked">
+                    {{ user.active ? (user.locked ? 'Locked' : 'Active') : 'Inactive' }}
+                  </span>
+                </div>
+              </td>
+              <td>
+                <span *ngIf="user.lastLoginAt" class="last-login">
+                  {{ user.lastLoginAt | date:'medium' }}
+                </span>
+                <span *ngIf="!user.lastLoginAt" class="no-login">Never</span>
+              </td>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button 
+                    class="btn btn-sm btn-outline"
+                    (click)="viewUserPermissions(user)"
+                    [disabled]="loadingPermissionUsers"
+                    title="View user permissions">
+                    👁️
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-info"
+                    (click)="showPermissionCheckForUser(user, selectedPermissionForUsers!)"
+                    [disabled]="loadingPermissionUsers"
+                    title="Check permission details">
+                    🔍
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- No Users Message -->
+      <div class="no-data" *ngIf="!loadingPermissionUsers && permissionUsers.length === 0">
+        <div class="no-data-icon">👤</div>
+        <h3>No users with direct permission</h3>
+        <p>No users currently have this permission directly assigned to them.</p>
+        <p><small>Users may still have access through role-based permissions.</small></p>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="hidePermissionUsersModal()">
+        Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Permission Check Modal -->
+<div class="modal-overlay" *ngIf="showPermissionCheckModal" (click)="hidePermissionCheckModal()">
+  <div class="modal-content modal-medium" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Permission Check Result</h2>
+      <button class="close-btn" (click)="hidePermissionCheckModal()">×</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="permission-check-info" *ngIf="selectedUserForPermissionCheck && selectedPermissionForCheck">
+        <div class="user-info">
+          <h4>User: {{ selectedUserForPermissionCheck.firstName }} {{ selectedUserForPermissionCheck.lastName }}</h4>
+          <p><strong>Email:</strong> {{ selectedUserForPermissionCheck.email }}</p>
+          <p><strong>UID:</strong> {{ selectedUserForPermissionCheck.uid }}</p>
+        </div>
+        
+        <div class="permission-info">
+          <h4>Permission: {{ selectedPermissionForCheck.name }}</h4>
+          <p><strong>Action:</strong> {{ selectedPermissionForCheck.action }}</p>
+          <p><strong>Resource:</strong> {{ selectedPermissionForCheck.resource }}</p>
+          <p><strong>Scope:</strong> {{ selectedPermissionForCheck.scopeType }}
+            <span *ngIf="selectedPermissionForCheck.scopeId"> ({{ selectedPermissionForCheck.scopeId }})</span>
+          </p>
+          <p><strong>Description:</strong> {{ selectedPermissionForCheck.description }}</p>
+        </div>
+        
+        <div class="check-result">
+          <div class="loading-container" *ngIf="loadingPermissionCheck || loadingDirectPermissionCheck">
+            <div class="spinner"></div>
+            <p>Checking permissions...</p>
+          </div>
+          
+          <div class="result-display" *ngIf="!loadingPermissionCheck && !loadingDirectPermissionCheck && permissionCheckResult !== null && directPermissionCheckResult !== null">
+            <!-- Overall Permission Status -->
+            <div class="permission-check-section">
+              <div class="result-icon" [ngClass]="getPermissionCheckResultClass()">
+                {{ permissionCheckResult ? '✅' : '❌' }}
+              </div>
+              <h3 [ngClass]="getPermissionCheckResultClass()">{{ getPermissionCheckResultText() }}</h3>
+            </div>
+
+            <!-- Direct Permission Status -->
+            <div class="permission-check-section">
+              <div class="result-icon" [ngClass]="getDirectPermissionCheckResultClass()">
+                {{ directPermissionCheckResult ? '🎯' : '⭕' }}
+              </div>
+              <h4 [ngClass]="getDirectPermissionCheckResultClass()">{{ getDirectPermissionCheckResultText() }}</h4>
+            </div>
+
+            <!-- Permission Source Analysis -->
+            <div class="result-analysis">
+              <div class="analysis-card">
+                <h4>Permission Source Analysis</h4>
+                <p class="analysis-text">{{ getPermissionSourceAnalysis() }}</p>
+                
+                <div class="permission-breakdown" *ngIf="permissionCheckResult">
+                  <div class="breakdown-item" [class.active]="directPermissionCheckResult">
+                    <span class="breakdown-icon">🎯</span>
+                    <span class="breakdown-label">Direct Assignment</span>
+                    <span class="breakdown-status" [ngClass]="directPermissionCheckResult ? 'text-success' : 'text-muted'">
+                      {{ directPermissionCheckResult ? 'Yes' : 'No' }}
+                    </span>
+                  </div>
+                  <div class="breakdown-item" [class.active]="permissionCheckResult && !directPermissionCheckResult">
+                    <span class="breakdown-icon">👥</span>
+                    <span class="breakdown-label">Role-based Assignment</span>
+                    <span class="breakdown-status" [ngClass]="(permissionCheckResult && !directPermissionCheckResult) ? 'text-success' : 'text-muted'">
+                      {{ (permissionCheckResult && !directPermissionCheckResult) ? 'Yes' : 'No' }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn btn-secondary" (click)="hidePermissionCheckModal()">
+        Close
+      </button>
+      <button 
+        class="btn btn-primary" 
+        (click)="checkBothPermissionTypes(selectedUserForPermissionCheck!.id, selectedPermissionForCheck!.id)"
+        [disabled]="loadingPermissionCheck || loadingDirectPermissionCheck"
+        *ngIf="selectedUserForPermissionCheck && selectedPermissionForCheck">
+        🔄 Recheck Both
+      </button>
+    </div>
   </div>
 </div>
