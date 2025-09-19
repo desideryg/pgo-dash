@@ -1,0 +1,783 @@
+<!-- Header Section -->
+<div class="page-header">
+  <div class="header-content">
+    <h1>Permission Management</h1>
+    <p>Manage system permissions and access controls</p>
+  </div>
+  <div class="header-actions">
+    <button 
+      class="btn btn-primary" 
+      (click)="showCreatePermissionForm()"
+      [disabled]="loading">
+      <span class="icon">➕</span>
+      Create Permission
+    </button>
+  </div>
+</div>
+
+<!-- Success/Error Messages -->
+<div class="messages" *ngIf="success || error">
+  <div class="alert alert-success" *ngIf="success">
+    <span class="icon">✅</span>
+    {{ success }}
+    <button class="close-btn" (click)="clearMessages()">×</button>
+  </div>
+  <div class="alert alert-error" *ngIf="error">
+    <span class="icon">❌</span>
+    {{ error }}
+    <button class="close-btn" (click)="clearMessages()">×</button>
+  </div>
+</div>
+
+<!-- Create Permission Form -->
+<div class="modal-overlay" *ngIf="showCreateForm" (click)="hideCreateForm()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Create New Permission</h2>
+      <button class="close-btn" (click)="hideCreateForm()">×</button>
+    </div>
+    
+    <form [formGroup]="createPermissionForm" (ngSubmit)="createPermission()" class="form">
+      <div class="info-banner">
+        <span class="info-icon">ℹ️</span>
+        <span>Permission name will be automatically generated based on action and resource, or you can provide a custom name</span>
+      </div>
+      
+      <div class="form-group">
+        <label for="customName">Custom Permission Name (Optional)</label>
+        <input
+          type="text"
+          id="customName"
+          formControlName="name"
+          class="form-control"
+          placeholder="e.g., custom:user:view (leave empty for auto-generation)"
+          (blur)="checkPermissionExists()"
+          [class.error]="createPermissionForm.get('name')?.invalid && createPermissionForm.get('name')?.touched">
+        <small class="form-text">If provided, this custom name will be used instead of auto-generating from action + resource</small>
+        <div class="error-text" *ngIf="createPermissionForm.get('name')?.invalid && createPermissionForm.get('name')?.touched">
+          <span *ngIf="createPermissionForm.get('name')?.errors?.['exists']">A permission with this name already exists</span>
+        </div>
+        <div class="success-text" *ngIf="createPermissionForm.get('name')?.value && createPermissionForm.get('name')?.valid && createPermissionForm.get('name')?.touched">
+          <span>✓ Custom name is available</span>
+        </div>
+      </div>
+      
+      <div class="form-row">
+        <div class="form-group">
+          <label for="action">Action *</label>
+          <select
+            id="action"
+            formControlName="action"
+            class="form-control"
+            [class.error]="createPermissionForm.get('action')?.invalid && createPermissionForm.get('action')?.touched">
+            <option value="">-- Select action --</option>
+            <option *ngFor="let action of permissionActions" [value]="action.value" [title]="action.description">
+              {{ action.displayName }} ({{ action.value }}) - {{ action.description }}
+            </option>
+          </select>
+          <div class="error-text" *ngIf="createPermissionForm.get('action')?.invalid && createPermissionForm.get('action')?.touched">
+            <span *ngIf="createPermissionForm.get('action')?.errors?.['required']">Action is required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="resource">Resource *</label>
+          <select
+            id="resource"
+            formControlName="resource"
+            class="form-control"
+            [class.error]="createPermissionForm.get('resource')?.invalid && createPermissionForm.get('resource')?.touched">
+            <option value="">-- Select resource --</option>
+            <option *ngFor="let resource of permissionResources" [value]="resource.value" [title]="resource.description">
+              {{ resource.displayName }} ({{ resource.value }}) - {{ resource.description }}
+            </option>
+          </select>
+          <div class="error-text" *ngIf="createPermissionForm.get('resource')?.invalid && createPermissionForm.get('resource')?.touched">
+            <span *ngIf="createPermissionForm.get('resource')?.errors?.['required']">Resource is required</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="scopeType">Scope Type *</label>
+          <select
+            id="scopeType"
+            formControlName="scopeType"
+            class="form-control"
+            [class.error]="createPermissionForm.get('scopeType')?.invalid && createPermissionForm.get('scopeType')?.touched">
+            <option *ngFor="let scopeType of permissionScopeTypes" [value]="scopeType.value">
+              {{ scopeType.displayName }} ({{ scopeType.value }}) - {{ scopeType.description }}
+            </option>
+          </select>
+          <div class="error-text" *ngIf="createPermissionForm.get('scopeType')?.invalid && createPermissionForm.get('scopeType')?.touched">
+            <span *ngIf="createPermissionForm.get('scopeType')?.errors?.['required']">Scope type is required</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group" *ngIf="createPermissionForm.get('scopeType')?.value !== 'GLOBAL'">
+        <label for="scopeId">Scope ID *</label>
+        <input
+          type="text"
+          id="scopeId"
+          formControlName="scopeId"
+          class="form-control"
+          placeholder="e.g., merchant123 or user456"
+          [class.error]="createPermissionForm.get('scopeId')?.invalid && createPermissionForm.get('scopeId')?.touched">
+        <small class="form-text">Specific ID for scoped permissions</small>
+        <div class="error-text" *ngIf="createPermissionForm.get('scopeId')?.invalid && createPermissionForm.get('scopeId')?.touched">
+          <span *ngIf="createPermissionForm.get('scopeId')?.errors?.['required']">Scope ID is required for non-global permissions</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description *</label>
+        <textarea
+          id="description"
+          formControlName="description"
+          class="form-control"
+          rows="3"
+          placeholder="Brief description of what this permission allows"
+          [class.error]="createPermissionForm.get('description')?.invalid && createPermissionForm.get('description')?.touched"></textarea>
+        <div class="error-text" *ngIf="createPermissionForm.get('description')?.invalid && createPermissionForm.get('description')?.touched">
+          <span *ngIf="createPermissionForm.get('description')?.errors?.['required']">Description is required</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" (click)="hideCreateForm()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="loading || createPermissionForm.invalid">
+          <span *ngIf="loading" class="spinner"></span>
+          {{ loading ? 'Creating...' : 'Create Permission' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Edit Permission Form -->
+<div class="modal-overlay" *ngIf="showEditForm" (click)="hideEditForm()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Edit Permission: {{ editingPermission?.name }}</h2>
+      <button class="close-btn" (click)="hideEditForm()">×</button>
+    </div>
+    
+    <form [formGroup]="editPermissionForm" (ngSubmit)="updatePermission()" class="form">
+      <div class="info-banner">
+        <span class="info-icon">ℹ️</span>
+        <span>Only the description can be modified. Permission name, action, resource, and scope are immutable.</span>
+      </div>
+      
+      <div class="form-group">
+        <label for="editDescription">Description *</label>
+        <textarea
+          id="editDescription"
+          formControlName="description"
+          class="form-control"
+          rows="4"
+          [class.error]="editPermissionForm.get('description')?.invalid && editPermissionForm.get('description')?.touched"></textarea>
+        <div class="error-text" *ngIf="editPermissionForm.get('description')?.invalid && editPermissionForm.get('description')?.touched">
+          <span *ngIf="editPermissionForm.get('description')?.errors?.['required']">Description is required</span>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" (click)="hideEditForm()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="loading || editPermissionForm.invalid">
+          <span *ngIf="loading" class="spinner"></span>
+          {{ loading ? 'Updating...' : 'Update Permission' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Permission Details Modal -->
+<div class="modal-overlay" *ngIf="showDetailsModal" (click)="hideDetailsModal()">
+  <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Permission Details</h2>
+      <button class="close-btn" (click)="hideDetailsModal()">×</button>
+    </div>
+    
+    <div class="permission-details" *ngIf="selectedPermission">
+      <div class="details-grid">
+        <div class="detail-item">
+          <label>Permission Name</label>
+          <span class="value">{{ selectedPermission.name }}</span>
+        </div>
+        
+        <div class="detail-item">
+          <label>Action</label>
+          <span class="badge" [ngClass]="getActionClass(selectedPermission.action)">
+            {{ selectedPermission.action }}
+          </span>
+        </div>
+        
+        <div class="detail-item">
+          <label>Resource</label>
+          <span class="value">{{ selectedPermission.resource }}</span>
+        </div>
+        
+        <div class="detail-item">
+          <label>Scope Type</label>
+          <span class="badge" [ngClass]="getScopeTypeClass(selectedPermission.scopeType)">
+            {{ selectedPermission.scopeType }}
+          </span>
+        </div>
+        
+        <div class="detail-item" *ngIf="selectedPermission.scopeId">
+          <label>Scope ID</label>
+          <span class="value">{{ selectedPermission.scopeId }}</span>
+        </div>
+        
+        <div class="detail-item">
+          <label>Spring Security Permission</label>
+          <code class="code-value">{{ selectedPermission.springSecurityPermission }}</code>
+        </div>
+      </div>
+      
+      <div class="detail-item full-width">
+        <label>Description</label>
+        <p class="description">{{ selectedPermission.description }}</p>
+      </div>
+      
+      <div class="detail-flags">
+        <span class="flag" [class.active]="selectedPermission.global">Global</span>
+        <span class="flag" [class.active]="selectedPermission.scoped">Scoped</span>
+        <span class="flag" [class.active]="selectedPermission.merchantScoped">Merchant Scoped</span>
+        <span class="flag" [class.active]="selectedPermission.userScoped">User Scoped</span>
+      </div>
+      
+      <div class="detail-timestamps">
+        <div class="timestamp">
+          <label>Created</label>
+          <span>{{ selectedPermission.createdAt | date:'medium' }}</span>
+        </div>
+        <div class="timestamp">
+          <label>Updated</label>
+          <span>{{ selectedPermission.updatedAt | date:'medium' }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="filters-section">
+  <div class="search-container">
+    <div class="search-input-group">
+      <span class="search-icon">🔍</span>
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        (input)="applyFilters(); applyAvailablePermissionsFilters()"
+        placeholder="Search permissions..."
+        class="search-input">
+      <button 
+        *ngIf="searchTerm" 
+        class="clear-search"
+        (click)="searchTerm = ''; applyFilters(); applyAvailablePermissionsFilters()">
+        ×
+      </button>
+    </div>
+  </div>
+  
+  <div class="filter-controls">
+    <select [(ngModel)]="selectedResource" (change)="applyFilters(); applyAvailablePermissionsFilters()" class="filter-select">
+      <option value="">All Resources</option>
+      <option *ngFor="let resource of permissionResources" [value]="resource.value">{{ resource.displayName }}</option>
+    </select>
+    
+    <select [(ngModel)]="selectedScopeType" (change)="applyFilters()" class="filter-select">
+      <option value="">All Scopes</option>
+      <option *ngFor="let scopeType of permissionScopeTypes" [value]="scopeType.value">{{ scopeType.displayName }}</option>
+    </select>
+    
+    <select [(ngModel)]="selectedAction" (change)="applyFilters(); applyAvailablePermissionsFilters()" class="filter-select">
+      <option value="">All Actions</option>
+      <option *ngFor="let action of permissionActions" [value]="action.value">{{ action.displayName }}</option>
+    </select>
+    
+    <button class="btn btn-outline" (click)="clearFilters()">Clear Filters</button>
+    <button class="btn btn-secondary" (click)="toggleAdvancedFilters()">
+      {{ showAdvancedFilters ? 'Hide' : 'Show' }} Advanced Filters
+    </button>
+    <button class="btn btn-info" (click)="toggleAvailablePermissions()">
+      {{ showAvailablePermissions ? 'Hide' : 'Show' }} Available Permissions
+    </button>
+    <button class="btn btn-secondary" (click)="toggleRolePermissions()">
+      {{ showRolePermissions ? 'Hide' : 'Show' }} Role Permissions
+    </button>
+  </div>
+  
+  <!-- Advanced Filters -->
+  <div class="advanced-filters" *ngIf="showAdvancedFilters">
+    <div class="advanced-filter-group">
+      <label for="scopeIdFilter">Filter by Scope ID</label>
+      <input
+        type="text"
+        id="scopeIdFilter"
+        [(ngModel)]="scopeIdFilter"
+        (input)="applyFilters()"
+        placeholder="e.g., merchant123, user456"
+        class="form-control">
+      <small class="form-text">Filter scoped permissions by specific merchant or user ID</small>
+    </div>
+  </div>
+  
+  <div class="results-info">
+    <span>{{ filteredPermissions.length }} of {{ totalItems }} permissions</span>
+  </div>
+</div>
+
+<!-- Available Permissions Section -->
+<div class="available-permissions-section" *ngIf="showAvailablePermissions">
+  <div class="section-header">
+    <h3>Available Permission Combinations</h3>
+    <p>These are all possible permission combinations supported by the system. Click "Create" to add them to your permissions.</p>
+  </div>
+  
+  <div class="available-permissions-info">
+    <span>{{ filteredAvailablePermissions.length }} of {{ availablePermissions.length }} available permissions</span>
+  </div>
+  
+  <div class="available-permissions-grid">
+    <div 
+      *ngFor="let availablePermission of filteredAvailablePermissions" 
+      class="available-permission-card"
+      [class.exists-in-database]="availablePermission.existsInDatabase">
+      
+      <div class="permission-header">
+        <h4>{{ availablePermission.permissionName }}</h4>
+        <div class="permission-badges">
+          <span class="badge" [ngClass]="getActionClass(availablePermission.action)">
+            {{ availablePermission.actionDisplayName }}
+          </span>
+          <span class="badge resource-badge">
+            {{ availablePermission.resourceDisplayName }}
+          </span>
+        </div>
+      </div>
+      
+      <div class="permission-details">
+        <p><strong>Action:</strong> {{ availablePermission.actionDescription }}</p>
+        <p><strong>Resource:</strong> {{ availablePermission.resourceDescription }}</p>
+        <p><strong>Spring Security:</strong> <code>{{ availablePermission.springSecurityPermission }}</code></p>
+      </div>
+      
+      <div class="permission-flags">
+        <span class="flag" *ngIf="availablePermission.crudOperation">CRUD</span>
+        <span class="flag" *ngIf="availablePermission.userRelated">User Related</span>
+        <span class="flag" *ngIf="availablePermission.merchantRelated">Merchant Related</span>
+        <span class="flag" *ngIf="availablePermission.paymentRelated">Payment Related</span>
+      </div>
+      
+      <div class="permission-actions">
+        <button 
+          *ngIf="!availablePermission.existsInDatabase"
+          class="btn btn-primary btn-small"
+          (click)="createPermissionFromAvailable(availablePermission)">
+          Create Permission
+        </button>
+        <span 
+          *ngIf="availablePermission.existsInDatabase"
+          class="status-badge exists">
+          Already Exists
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Role Permissions Section -->
+<div class="role-permissions-section" *ngIf="showRolePermissions">
+  <div class="section-header">
+    <h3>Role Permissions</h3>
+    <p>View and manage permissions assigned to different roles in the system.</p>
+  </div>
+  
+  <div class="roles-grid">
+    <div 
+      *ngFor="let role of roles" 
+      class="role-card"
+      (click)="viewRolePermissions(role)">
+      
+      <div class="role-header">
+        <h4>{{ role.displayName || role.name }}</h4>
+        <div class="role-info">
+          <span class="role-name">{{ role.name }}</span>
+        </div>
+      </div>
+      
+      <div class="role-details">
+        <p *ngIf="role.description">{{ role.description }}</p>
+        <p *ngIf="!role.description" class="no-description">No description available</p>
+      </div>
+      
+      <div class="role-stats">
+        <span class="permission-count">
+          {{ getPermissionsByRole(role.id).length }} permissions
+        </span>
+      </div>
+      
+      <div class="role-actions">
+        <button 
+          class="btn btn-primary btn-small"
+          (click)="viewRolePermissions(role); $event.stopPropagation()">
+          View Permissions
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Role Permission Details Modal -->
+<div class="modal-overlay" *ngIf="showRolePermissionModal" (click)="hideRolePermissionModal()">
+  <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Permissions for Role: {{ selectedRole?.displayName || selectedRole?.name }}</h2>
+      <button class="close-btn" (click)="hideRolePermissionModal()">×</button>
+    </div>
+    
+    <div class="role-permission-content">
+      <div class="role-info-banner" *ngIf="selectedRole">
+        <div class="role-details">
+          <h4>{{ selectedRole.displayName || selectedRole.name }}</h4>
+          <p *ngIf="selectedRole.description">{{ selectedRole.description }}</p>
+          <span class="permission-count">{{ rolePermissions.length }} permissions assigned</span>
+        </div>
+        <div class="role-actions-header">
+          <button 
+            class="btn btn-success"
+            (click)="showAssignPermissionsModal()"
+            [disabled]="loadingRolePermissions">
+            ➕ Assign Permissions
+          </button>
+        </div>
+      </div>
+      
+      <!-- Loading State -->
+      <div class="loading-container" *ngIf="loadingRolePermissions">
+        <div class="spinner-large"></div>
+        <p>Loading role permissions...</p>
+      </div>
+      
+      <!-- Role Permissions Table -->
+      <div class="table-container" *ngIf="!loadingRolePermissions && rolePermissions.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Permission Name</th>
+              <th>Action</th>
+              <th>Resource</th>
+              <th>Scope</th>
+              <th>Description</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let permission of rolePermissions; trackBy: trackByPermissionId">
+              <td>
+                <div class="permission-name">
+                  <strong>{{ permission.name }}</strong>
+                  <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                </div>
+              </td>
+              <td>
+                <span class="badge" [ngClass]="getActionClass(permission.action)">
+                  {{ permission.action }}
+                </span>
+              </td>
+              <td>{{ permission.resource }}</td>
+              <td>
+                <div class="scope-info">
+                  <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+                    {{ permission.scopeType }}
+                  </span>
+                  <small *ngIf="permission.scopeId" class="scope-id">{{ permission.scopeId }}</small>
+                </div>
+              </td>
+              <td class="description-cell" [title]="permission.description">
+                {{ permission.description }}
+              </td>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button 
+                    class="btn btn-sm btn-outline"
+                    (click)="showPermissionDetails(permission)"
+                    [disabled]="loadingRolePermissions"
+                    title="View details">
+                    👁️
+                  </button>
+                  <button 
+                    class="btn btn-sm btn-danger"
+                    (click)="removePermissionFromRole(selectedRole!.id, permission.id)"
+                    [disabled]="loadingRolePermissions"
+                    title="Remove from role">
+                    🗑️
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- No Permissions Message -->
+      <div class="no-data" *ngIf="!loadingRolePermissions && rolePermissions.length === 0">
+        <div class="no-data-icon">🔐</div>
+        <h3>No permissions assigned</h3>
+        <p>This role currently has no permissions assigned to it.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Assign Permissions Modal -->
+<div class="modal-overlay" *ngIf="showAssignPermissionsForm" (click)="hideAssignPermissionsModal()">
+  <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Assign Permissions to {{ selectedRole?.displayName || selectedRole?.name }}</h2>
+      <button class="close-btn" (click)="hideAssignPermissionsModal()">×</button>
+    </div>
+    
+    <div class="assign-permissions-content">
+      <!-- Assignment Info -->
+      <div class="assignment-info">
+        <div class="info-item">
+          <label>Role:</label>
+          <span class="role-name">{{ selectedRole?.displayName || selectedRole?.name }}</span>
+        </div>
+        <div class="info-item">
+          <label>Current Permissions:</label>
+          <span class="permission-count">{{ rolePermissions.length }}</span>
+        </div>
+        <div class="info-item">
+          <label>Available to Assign:</label>
+          <span class="permission-count">{{ availablePermissionsForAssignment.length }}</span>
+        </div>
+      </div>
+
+      <!-- Reason Input -->
+      <div class="form-group">
+        <label for="assignmentReason">Reason for Assignment (Optional)</label>
+        <textarea
+          id="assignmentReason"
+          [(ngModel)]="assignmentReason"
+          class="form-control"
+          rows="2"
+          placeholder="e.g., Adding user management permissions for new role responsibilities"
+          [disabled]="loadingAssignment"></textarea>
+        <small class="form-text">Provide a reason for this permission assignment for audit purposes</small>
+      </div>
+
+      <!-- Selection Controls -->
+      <div class="selection-controls">
+        <div class="selection-info">
+          <span>{{ selectedPermissionsForAssignment.length }} of {{ availablePermissionsForAssignment.length }} permissions selected</span>
+        </div>
+        <div class="selection-actions">
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="selectAllAvailablePermissions()"
+            [disabled]="loadingAssignment || availablePermissionsForAssignment.length === 0">
+            Select All
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="deselectAllPermissions()"
+            [disabled]="loadingAssignment || selectedPermissionsForAssignment.length === 0">
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <!-- Available Permissions List -->
+      <div class="available-permissions-list" *ngIf="availablePermissionsForAssignment.length > 0">
+        <div class="permissions-grid">
+          <div 
+            *ngFor="let permission of availablePermissionsForAssignment" 
+            class="permission-checkbox-card"
+            [class.selected]="isPermissionSelected(permission.id)"
+            (click)="togglePermissionSelection(permission.id)">
+            
+            <div class="checkbox-container">
+              <input 
+                type="checkbox"
+                [checked]="isPermissionSelected(permission.id)"
+                (click)="$event.stopPropagation()"
+                (change)="togglePermissionSelection(permission.id)"
+                [disabled]="loadingAssignment">
+            </div>
+            
+            <div class="permission-info">
+              <div class="permission-header">
+                <strong>{{ permission.name }}</strong>
+                <div class="permission-badges">
+                  <span class="badge" [ngClass]="getActionClass(permission.action)">
+                    {{ permission.action }}
+                  </span>
+                  <span class="badge resource-badge">
+                    {{ permission.resource }}
+                  </span>
+                  <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+                    {{ permission.scopeType }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="permission-details">
+                <p class="description">{{ permission.description }}</p>
+                <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                <small *ngIf="permission.scopeId" class="scope-id">Scope: {{ permission.scopeId }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Available Permissions -->
+      <div class="no-data" *ngIf="availablePermissionsForAssignment.length === 0">
+        <div class="no-data-icon">✅</div>
+        <h3>All permissions assigned</h3>
+        <p>This role already has all available permissions assigned to it.</p>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="hideAssignPermissionsModal()"
+          [disabled]="loadingAssignment">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-success" 
+          (click)="assignPermissionsToRole()"
+          [disabled]="loadingAssignment || selectedPermissionsForAssignment.length === 0">
+          <span *ngIf="loadingAssignment" class="spinner"></span>
+          {{ loadingAssignment ? 'Assigning...' : 'Assign ' + selectedPermissionsForAssignment.length + ' Permission(s)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading State -->
+<div class="loading-container" *ngIf="loading && permissions.length === 0">
+  <div class="spinner-large"></div>
+  <p>Loading permissions...</p>
+</div>
+
+<!-- Permissions Table -->
+<div class="table-container" *ngIf="!loading || permissions.length > 0">
+  <table class="data-table" *ngIf="filteredPermissions.length > 0; else noPermissions">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Action</th>
+        <th>Resource</th>
+        <th>Scope</th>
+        <th>Description</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let permission of filteredPermissions; trackBy: trackByPermissionId">
+        <td>
+          <div class="permission-name">
+            <strong>{{ permission.name }}</strong>
+            <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+          </div>
+        </td>
+        <td>
+          <span class="badge" [ngClass]="getActionClass(permission.action)">
+            {{ permission.action }}
+          </span>
+        </td>
+        <td>{{ permission.resource }}</td>
+        <td>
+          <div class="scope-info">
+            <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+              {{ permission.scopeType }}
+            </span>
+            <small *ngIf="permission.scopeId" class="scope-id">{{ permission.scopeId }}</small>
+          </div>
+        </td>
+        <td class="description-cell" [title]="permission.description">
+          {{ permission.description }}
+        </td>
+        <td class="actions-cell">
+          <div class="action-buttons">
+            <button 
+              class="btn btn-sm btn-outline"
+              (click)="showPermissionDetails(permission)"
+              [disabled]="loading"
+              title="View details">
+              👁️
+            </button>
+            <button 
+              class="btn btn-sm btn-outline"
+              (click)="showEditPermissionForm(permission)"
+              [disabled]="loading"
+              title="Edit description">
+              ✏️
+            </button>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- No Permissions Message -->
+  <ng-template #noPermissions>
+    <div class="no-data">
+      <div class="no-data-icon">🔐</div>
+      <h3>No permissions found</h3>
+      <p *ngIf="searchTerm || selectedResource || selectedScopeType || selectedAction">No permissions match your filters.</p>
+      <p *ngIf="!searchTerm && !selectedResource && !selectedScopeType && !selectedAction">No permissions have been created yet.</p>
+      <button 
+        class="btn btn-primary"
+        (click)="showCreatePermissionForm()"
+        *ngIf="!searchTerm && !selectedResource && !selectedScopeType && !selectedAction">
+        Create First Permission
+      </button>
+      <button 
+        class="btn btn-secondary"
+        (click)="clearFilters()"
+        *ngIf="searchTerm || selectedResource || selectedScopeType || selectedAction">
+        Clear Filters
+      </button>
+    </div>
+  </ng-template>
+</div>
+
+<!-- Pagination -->
+<div class="pagination-container" *ngIf="totalPages > 1">
+  <div class="pagination">
+    <button 
+      class="pagination-btn"
+      [disabled]="currentPage === 0"
+      (click)="onPageChange(currentPage - 1)">
+      ← Previous
+    </button>
+    
+    <span class="pagination-info">
+      Page {{ currentPage + 1 }} of {{ totalPages }}
+    </span>
+    
+    <button 
+      class="pagination-btn"
+      [disabled]="currentPage === totalPages - 1"
+      (click)="onPageChange(currentPage + 1)">
+      Next →
+    </button>
+  </div>
+</div>

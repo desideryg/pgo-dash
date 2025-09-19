@@ -1,0 +1,199 @@
+<div class="user-creation-container">
+  <div class="user-creation-content">
+    <div class="user-creation-card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <span class="card-icon">👥</span>
+          Create New User
+        </h3>
+      </div>
+      <div class="card-content">
+          <!-- Success Message -->
+          <div *ngIf="successMessage" class="alert alert-success" role="alert">
+            <div class="alert-content">
+              <i class="fas fa-check-circle alert-icon"></i>
+              <div class="alert-text">
+                <strong>Success!</strong>
+                <p>{{ successMessage }}</p>
+                <small>Redirecting to dashboard in a few seconds...</small>
+              </div>
+            </div>
+            <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <!-- Error Message -->
+          <div *ngIf="errorMessage" class="alert alert-danger" role="alert">
+            <div class="alert-content">
+              <i class="fas fa-exclamation-triangle alert-icon"></i>
+              <div class="alert-text">
+                <strong>Error!</strong>
+                <p>{{ errorMessage }}</p>
+              </div>
+            </div>
+            <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+
+          <form [formGroup]="userForm" (ngSubmit)="onSubmit()">
+            <div class="form-row">
+              <!-- Username -->
+              <div class="form-group">
+                <label for="username" class="form-label">Username *</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  id="username"
+                  formControlName="username"
+                  [class.is-invalid]="isFieldInvalid('username')"
+                  (input)="onFormFieldChange()"
+                  placeholder="Enter username">
+                <div *ngIf="isFieldInvalid('username')" class="invalid-feedback">
+                  {{ getFieldError('username') }}
+                </div>
+              </div>
+
+              <!-- Email -->
+              <div class="form-group">
+                <label for="email" class="form-label">Email *</label>
+                <input 
+                  type="email" 
+                  class="form-control" 
+                  id="email"
+                  formControlName="email"
+                  [class.is-invalid]="isFieldInvalid('email')"
+                  placeholder="Enter email address">
+                <div *ngIf="isFieldInvalid('email')" class="invalid-feedback">
+                  {{ getFieldError('email') }}
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <!-- First Name -->
+              <div class="form-group">
+                <label for="firstName" class="form-label">First Name *</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  id="firstName"
+                  formControlName="firstName"
+                  [class.is-invalid]="isFieldInvalid('firstName')"
+                  placeholder="Enter first name">
+                <div *ngIf="isFieldInvalid('firstName')" class="invalid-feedback">
+                  {{ getFieldError('firstName') }}
+                </div>
+              </div>
+
+              <!-- Last Name -->
+              <div class="form-group">
+                <label for="lastName" class="form-label">Last Name *</label>
+                <input 
+                  type="text" 
+                  class="form-control" 
+                  id="lastName"
+                  formControlName="lastName"
+                  [class.is-invalid]="isFieldInvalid('lastName')"
+                  placeholder="Enter last name">
+                <div *ngIf="isFieldInvalid('lastName')" class="invalid-feedback">
+                  {{ getFieldError('lastName') }}
+                </div>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <!-- Phone Number -->
+              <div class="form-group">
+                <label for="phoneNumber" class="form-label">Phone Number *</label>
+                <input 
+                  type="tel" 
+                  class="form-control" 
+                  id="phoneNumber"
+                  formControlName="phoneNumber"
+                  [class.is-invalid]="isFieldInvalid('phoneNumber')"
+                  placeholder="Enter phone number">
+                <div *ngIf="isFieldInvalid('phoneNumber')" class="invalid-feedback">
+                  {{ getFieldError('phoneNumber') }}
+                </div>
+              </div>
+
+              <!-- User Type -->
+              <div class="form-group">
+                <label for="userType" class="form-label">User Type *</label>
+                <select 
+                  class="form-select" 
+                  id="userType"
+                  formControlName="userType"
+                  [class.is-invalid]="isFieldInvalid('userType')">
+                  <option value="">Select user type</option>
+                  <option *ngFor="let type of userTypes" [value]="type.value">
+                    {{ type.displayName }}
+                  </option>
+                </select>
+                <div *ngIf="isFieldInvalid('userType')" class="invalid-feedback">
+                  {{ getFieldError('userType') }}
+                </div>
+              </div>
+            </div>
+
+            <!-- Roles -->
+            <div class="form-group roles-section">
+              <label class="form-label">Roles *</label>
+              <div class="roles-grid">
+                <div class="role-item" *ngFor="let role of userRoles">
+                  <div class="form-check">
+                    <input 
+                      class="form-check-input" 
+                      type="checkbox" 
+                      [value]="role.value"
+                      (change)="onRoleChange($event, role.value)"
+                      [checked]="userForm.get('roleNames')?.value?.includes(role.value)">
+                    <label class="form-check-label">
+                      <span class="role-name">{{ role.displayName }}</span>
+                      <small class="role-description">{{ role.description }}</small>
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div *ngIf="isFieldInvalid('roleNames')" class="text-danger small mt-1">
+                {{ getFieldError('roleNames') }}
+              </div>
+            </div>
+
+            <!-- Associated Merchant ID -->
+            <div class="form-group">
+              <label for="associatedMerchantId" class="form-label">Associated Merchant ID</label>
+              <input 
+                type="text" 
+                class="form-control" 
+                id="associatedMerchantId"
+                formControlName="associatedMerchantId"
+                placeholder="Enter merchant ID (optional)">
+              <div class="form-text">Leave empty if not applicable</div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="form-actions">
+              <button 
+                type="button" 
+                class="btn btn-cancel" 
+                (click)="onCancel()"
+                [disabled]="isLoading">
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                class="btn btn-primary"
+                [disabled]="isLoading || userForm.invalid">
+                <span *ngIf="isLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                <i *ngIf="!isLoading" class="fas fa-user-plus me-2"></i>
+                {{ isLoading ? 'Creating User...' : 'Create User' }}
+              </button>
+            </div>
+          </form>
+      </div>
+    </div>
+  </div>
+</div>

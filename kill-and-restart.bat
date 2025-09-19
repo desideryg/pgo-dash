@@ -1,0 +1,9 @@
+@echo off
+echo Stopping all Node.js processes...
+taskkill /F /IM node.exe >nul 2>&1
+echo.
+echo Waiting 2 seconds...
+timeout /t 2 /nobreak >nul
+echo.
+echo Starting Angular dev server on port 4200 with proxy...
+ng serve --port 4200 --proxy-config proxy.conf.json

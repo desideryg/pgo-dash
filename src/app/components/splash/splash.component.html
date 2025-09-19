@@ -1,0 +1,180 @@
+<div class="splash-container">
+  <!-- Header -->
+  <div class="splash-header">
+    <div class="header-content">
+      <h1 class="splash-title">
+        <span class="title-icon">🚀</span>
+        PGO Engine Dashboard
+      </h1>
+      <p class="splash-subtitle">Payment Gateway Orchestration Engine</p>
+      <div class="current-time">
+        <i class="fas fa-clock"></i>
+        {{ currentTime }}
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Loading API information...</p>
+    </div>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage && !isLoading" class="error-container">
+    <div class="error-content">
+      <i class="fas fa-exclamation-triangle error-icon"></i>
+      <h3>Connection Error</h3>
+      <p>{{ errorMessage }}</p>
+      <button class="retry-btn" (click)="refreshData()">
+        <i class="fas fa-redo"></i>
+        Retry Connection
+      </button>
+    </div>
+  </div>
+
+  <!-- API Information -->
+  <div *ngIf="splashData && !isLoading" class="api-info-container">
+    <div class="api-info-card">
+      <div class="card-header">
+        <h2 class="card-title">
+          <i class="fas fa-server"></i>
+          API Status
+        </h2>
+        <button class="refresh-btn" (click)="refreshData()" title="Refresh">
+          <i class="fas fa-sync-alt"></i>
+        </button>
+      </div>
+      
+      <div class="api-details">
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">
+              <i class="fas fa-tag"></i>
+              Application
+            </div>
+            <div class="info-value">{{ splashData.application }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">
+              <i class="fas fa-heartbeat"></i>
+              Health Status
+            </div>
+            <div class="info-value">
+              <span class="status-badge" [class.status-up]="splashData.health === 'UP'" [class.status-down]="splashData.health !== 'UP'">
+                <i class="fas" [class.fa-check-circle]="splashData.health === 'UP'" [class.fa-times-circle]="splashData.health !== 'UP'"></i>
+                {{ splashData.health }}
+              </span>
+            </div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">
+              <i class="fas fa-info-circle"></i>
+              Description
+            </div>
+            <div class="info-value">{{ splashData.description }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">
+              <i class="fas fa-code-branch"></i>
+              Version
+            </div>
+            <div class="info-value version-badge">{{ splashData.version }}</div>
+          </div>
+          
+          <div class="info-item">
+            <div class="info-label">
+              <i class="fas fa-clock"></i>
+              Last Updated
+            </div>
+            <div class="info-value">{{ formatTimestamp(splashData.timestamp) }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+      <h3 class="actions-title">
+        <i class="fas fa-bolt"></i>
+        Quick Actions
+      </h3>
+      
+      <div class="actions-grid">
+        <a routerLink="/login" class="action-card login-card">
+          <div class="card-icon">
+            <i class="fas fa-sign-in-alt"></i>
+          </div>
+          <div class="card-content">
+            <h4>Login</h4>
+            <p>Access the dashboard</p>
+          </div>
+        </a>
+        
+        <a routerLink="/dashboard" class="action-card dashboard-card">
+          <div class="card-icon">
+            <i class="fas fa-tachometer-alt"></i>
+          </div>
+          <div class="card-content">
+            <h4>Dashboard</h4>
+            <p>View system overview</p>
+          </div>
+        </a>
+        
+        <a routerLink="/users" class="action-card users-card">
+          <div class="card-icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="card-content">
+            <h4>User Management</h4>
+            <p>Manage users and roles</p>
+          </div>
+        </a>
+        
+        <a routerLink="/merchants" class="action-card merchants-card">
+          <div class="card-icon">
+            <i class="fas fa-store"></i>
+          </div>
+          <div class="card-content">
+            <h4>Merchant Management</h4>
+            <p>Manage merchants</p>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- System Information -->
+    <div class="system-info">
+      <div class="system-card">
+        <h3 class="system-title">
+          <i class="fas fa-cogs"></i>
+          System Information
+        </h3>
+        
+        <div class="system-details">
+          <div class="system-item">
+            <span class="system-label">Environment:</span>
+            <span class="system-value">Development</span>
+          </div>
+          <div class="system-item">
+            <span class="system-label">Frontend:</span>
+            <span class="system-value">Angular 17</span>
+          </div>
+          <div class="system-item">
+            <span class="system-label">Backend:</span>
+            <span class="system-value">Spring Boot</span>
+          </div>
+          <div class="system-item">
+            <span class="system-label">Database:</span>
+            <span class="system-value">PostgreSQL</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

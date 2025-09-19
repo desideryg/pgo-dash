@@ -1,0 +1,207 @@
+<div class="transaction-management">
+  <div class="header">
+    <h2>Transaction Management</h2>
+    <div class="header-actions">
+      <button class="btn btn-primary" (click)="exportTransactions()" [disabled]="loading">
+        <i class="fas fa-download"></i> Export CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-card">
+    <div class="filters-header">
+      <h3>Filters</h3>
+      <button class="btn btn-secondary btn-sm" (click)="clearFilters()">Clear All</button>
+    </div>
+    
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label for="search">Search</label>
+        <input 
+          type="text" 
+          id="search" 
+          [(ngModel)]="filterForm.search" 
+          placeholder="Search by transaction ID, customer, etc."
+          class="form-control"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label for="status">Status</label>
+        <select id="status" [(ngModel)]="filterForm.status" class="form-control">
+          <option *ngFor="let option of statusOptions" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="merchant">Merchant</label>
+        <select id="merchant" [(ngModel)]="filterForm.merchantId" class="form-control">
+          <option value="">All Merchants</option>
+          <option *ngFor="let merchant of merchants" [value]="merchant.id">
+            {{ merchant.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="pgo">Payment Gateway</label>
+        <select id="pgo" [(ngModel)]="filterForm.pgoId" class="form-control">
+          <option value="">All Payment Gateways</option>
+          <option *ngFor="let pgo of paymentGateways" [value]="pgo.id">
+            {{ pgo.name }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="startDate">Start Date</label>
+        <input 
+          type="date" 
+          id="startDate" 
+          [(ngModel)]="filterForm.startDate" 
+          class="form-control"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label for="endDate">End Date</label>
+        <input 
+          type="date" 
+          id="endDate" 
+          [(ngModel)]="filterForm.endDate" 
+          class="form-control"
+        >
+      </div>
+    </div>
+
+    <div class="filters-actions">
+      <button class="btn btn-primary" (click)="applyFilters()" [disabled]="loading">
+        <i class="fas fa-search"></i> Apply Filters
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading transactions...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error && !loading" class="error-state">
+    <div class="error-message">
+      <i class="fas fa-exclamation-triangle"></i>
+      {{ error }}
+    </div>
+    <button class="btn btn-primary" (click)="loadTransactions()">Retry</button>
+  </div>
+
+  <!-- Transactions Table -->
+  <div *ngIf="!loading && !error" class="transactions-table-container">
+    <div class="table-header">
+      <h3>Transactions ({{ totalElements }} total)</h3>
+    </div>
+
+    <div class="table-responsive">
+      <table class="transactions-table">
+        <thead>
+          <tr>
+            <th>Transaction ID</th>
+            <th>Customer</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Merchant</th>
+            <th>Payment Gateway</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let transaction of transactions" class="transaction-row">
+            <td class="transaction-id">
+              <div class="id-primary">{{ transaction.internalTransactionId }}</div>
+              <div class="id-secondary">{{ transaction.merchantTransactionId }}</div>
+            </td>
+            <td class="customer-info">
+              <div class="customer-name">{{ transaction.customerName }}</div>
+              <div class="customer-id">{{ transaction.customerIdentifier }}</div>
+            </td>
+            <td class="amount">
+              {{ formatAmount(transaction.amount, transaction.currency) }}
+            </td>
+            <td class="status">
+              <span class="status-badge" [ngClass]="getStatusClass(transaction.status)">
+                {{ transaction.status }}
+              </span>
+            </td>
+            <td class="merchant">
+              <div class="merchant-name">{{ transaction.merchantName }}</div>
+            </td>
+            <td class="pgo">
+              <div class="pgo-name">{{ transaction.pgoName }}</div>
+            </td>
+            <td class="created-date">
+              {{ formatDate(transaction.createdAt) }}
+            </td>
+            <td class="actions">
+              <button class="btn btn-sm btn-outline-primary" (click)="viewTransactionDetails(transaction)">
+                <i class="fas fa-eye"></i> View
+              </button>
+              <button class="btn btn-sm btn-outline-success" (click)="viewDisbursements(transaction)">
+                <i class="fas fa-money-bill-wave"></i> Disbursements
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination-container" *ngIf="totalPages > 1">
+      <div class="pagination-info">
+        Showing {{ (currentPage - 1) * pageSize + 1 }} to {{ Math.min(currentPage * pageSize, totalElements) }} of {{ totalElements }} transactions
+      </div>
+      
+      <div class="pagination">
+        <button 
+          class="btn btn-sm btn-outline-primary" 
+          (click)="onPageChange(currentPage - 1)"
+          [disabled]="currentPage === 1"
+        >
+          <i class="fas fa-chevron-left"></i> Previous
+        </button>
+        
+        <button 
+          *ngFor="let page of getPageNumbers()" 
+          class="btn btn-sm"
+          [class.btn-primary]="page === currentPage"
+          [class.btn-outline-primary]="page !== currentPage"
+          (click)="onPageChange(page)"
+        >
+          {{ page }}
+        </button>
+        
+        <button 
+          class="btn btn-sm btn-outline-primary" 
+          (click)="onPageChange(currentPage + 1)"
+          [disabled]="currentPage === totalPages"
+        >
+          Next <i class="fas fa-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && !error && transactions.length === 0" class="empty-state">
+    <div class="empty-icon">
+      <i class="fas fa-receipt"></i>
+    </div>
+    <h3>No transactions found</h3>
+    <p>Try adjusting your filters or check back later for new transactions.</p>
+    <button class="btn btn-primary" (click)="clearFilters()">Clear Filters</button>
+  </div>
+</div>

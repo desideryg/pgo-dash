@@ -1,0 +1,245 @@
+<div class="payment-channel-management-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">
+        <i class="fas fa-network-wired"></i>
+        Payment Channel Management
+      </h1>
+      <p class="page-subtitle">Manage payment channels and their configurations</p>
+    </div>
+    <div class="header-actions">
+      <button
+        class="btn btn-primary"
+        routerLink="/payment-channels/create">
+        <i class="fas fa-plus"></i>
+        Create Payment Channel
+      </button>
+    </div>
+  </div>
+
+  <!-- Alert Messages -->
+  <div class="alert-container">
+    <!-- Error Message -->
+    <div *ngIf="error" class="alert alert-error" role="alert">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ error }}
+    </div>
+    <!-- Success Message -->
+    <div *ngIf="success" class="alert alert-success" role="alert">
+      <i class="fas fa-check-circle"></i>
+      {{ success }}
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label for="searchTerm" class="filter-label">
+          <i class="fas fa-search"></i>
+          Search
+        </label>
+        <input
+          type="text"
+          id="searchTerm"
+          class="filter-input"
+          [(ngModel)]="searchTerm"
+          (input)="onSearch()"
+          placeholder="Search by name or code...">
+      </div>
+
+      <div class="filter-group">
+        <label for="typeFilter" class="filter-label">
+          <i class="fas fa-filter"></i>
+          Channel Type
+        </label>
+        <select
+          id="typeFilter"
+          class="filter-select"
+          [(ngModel)]="selectedType"
+          (change)="onFilterChange()">
+          <option value="">All Types</option>
+          <option *ngFor="let type of paymentChannelTypes" [value]="type">
+            {{ getTypeDisplayName(type) }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="statusFilter" class="filter-label">
+          <i class="fas fa-toggle-on"></i>
+          Status
+        </label>
+        <select
+          id="statusFilter"
+          class="filter-select"
+          [(ngModel)]="selectedStatus"
+          (change)="onFilterChange()">
+          <option *ngFor="let option of statusOptions" [value]="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-actions">
+        <button
+          class="btn btn-secondary btn-sm"
+          (click)="clearFilters()">
+          <i class="fas fa-times"></i>
+          Clear Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-container">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Loading payment channels...</p>
+    </div>
+  </div>
+
+  <!-- No Data State -->
+  <div *ngIf="!loading && paymentChannels.length === 0 && !error" class="empty-content">
+    <i class="fas fa-network-wired"></i>
+    <h3>No Payment Channels Found</h3>
+    <p *ngIf="searchTerm || selectedType || selectedStatus">
+      No payment channels match your current filters. Try adjusting your search criteria.
+    </p>
+    <p *ngIf="!searchTerm && !selectedType && !selectedStatus">
+      No payment channels have been created yet. Create your first payment channel to get started.
+    </p>
+    <button
+      class="btn btn-primary"
+      routerLink="/payment-channels/create">
+      <i class="fas fa-plus"></i>
+      Create Payment Channel
+    </button>
+  </div>
+
+  <!-- Payment Channels Table -->
+  <div *ngIf="!loading && paymentChannels.length > 0" class="table-section">
+    <div class="table-info">
+      <p class="table-summary">
+        Showing {{ paymentChannels.length }} of {{ totalElements }} payment channels
+      </p>
+    </div>
+
+    <div class="table-container">
+      <table class="payment-channels-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Code</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let channel of paymentChannels" class="channel-row">
+            <td class="name-cell">
+              <div class="channel-info">
+                <div class="channel-name">{{ channel.name }}</div>
+                <div class="channel-uid">{{ channel.uid }}</div>
+              </div>
+            </td>
+            
+            <td class="code-cell">
+              <span class="channel-code">{{ channel.code }}</span>
+            </td>
+            
+            <td class="type-cell">
+              <span class="type-badge" [ngClass]="getTypeClass(channel.paymentChannelType)">
+                <i [ngClass]="getTypeIcon(channel.paymentChannelType)"></i>
+                {{ getTypeDisplayName(channel.paymentChannelType) }}
+              </span>
+            </td>
+            
+            <td class="status-cell">
+              <span class="status-badge" [ngClass]="getStatusBadgeClass(channel.isActive)">
+                <i class="fas fa-circle"></i>
+                {{ getStatusText(channel.isActive) }}
+              </span>
+            </td>
+            
+            <td class="created-cell">
+              {{ formatDate(channel.createdAt) }}
+            </td>
+            
+            <td class="actions-cell">
+              <div class="actions">
+                <button 
+                  class="btn-action btn-toggle" 
+                  [class.btn-activate]="!channel.isActive"
+                  [class.btn-deactivate]="channel.isActive"
+                  (click)="toggleStatus(channel)"
+                  [title]="channel.isActive ? 'Deactivate' : 'Activate'"
+                >
+                  <i [ngClass]="channel.isActive ? 'fas fa-pause' : 'fas fa-play'"></i>
+                </button>
+                
+                <button 
+                  class="btn-action btn-edit" 
+                  [title]="'Edit Channel'"
+                >
+                  <i class="fas fa-edit"></i>
+                </button>
+                
+                <button 
+                  class="btn-action btn-delete" 
+                  (click)="deletePaymentChannel(channel)"
+                  [title]="'Delete Channel'"
+                >
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-container" *ngIf="!loading && totalPages > 1">
+    <div class="pagination">
+      <button 
+        class="btn btn-sm btn-secondary" 
+        [disabled]="!hasPreviousPage()" 
+        (click)="onPageChange(currentPage - 1)"
+      >
+        <i class="fas fa-chevron-left"></i>
+        Previous
+      </button>
+      
+      <div class="page-numbers">
+        <button 
+          *ngFor="let page of getPageNumbers()" 
+          class="btn btn-sm" 
+          [class.btn-primary]="page === currentPage"
+          [class.btn-secondary]="page !== currentPage"
+          (click)="onPageChange(page)"
+        >
+          {{ page + 1 }}
+        </button>
+      </div>
+      
+      <button 
+        class="btn btn-sm btn-secondary" 
+        [disabled]="!hasNextPage()" 
+        (click)="onPageChange(currentPage + 1)"
+      >
+        Next
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+    
+    <div class="pagination-info">
+      <span>Page {{ currentPage + 1 }} of {{ totalPages }}</span>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,308 @@
+<div class="merchant-management-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">
+        <i class="fas fa-store"></i>
+        Merchant Management
+      </h1>
+      <p class="page-subtitle">Manage merchants, their status, and verification</p>
+    </div>
+    <div class="header-actions">
+      <button
+        class="btn btn-primary"
+        routerLink="/merchants/create">
+        <i class="fas fa-plus"></i>
+        Create Merchant
+      </button>
+    </div>
+  </div>
+
+  <!-- Alert Messages -->
+  <div class="alert-container">
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="alert alert-error" role="alert">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ errorMessage }}
+    </div>
+    <!-- Success Message -->
+    <div *ngIf="successMessage" class="alert alert-success" role="alert">
+      <i class="fas fa-check-circle"></i>
+      {{ successMessage }}
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label for="searchTerm" class="filter-label">
+          <i class="fas fa-search"></i>
+          Search
+        </label>
+        <input
+          type="text"
+          id="searchTerm"
+          class="filter-input"
+          [(ngModel)]="searchTerm"
+          (input)="onSearchChange()"
+          placeholder="Search by name, email, business type, or city...">
+      </div>
+
+      <div class="filter-group">
+        <label for="statusFilter" class="filter-label">
+          <i class="fas fa-filter"></i>
+          Status
+        </label>
+        <select
+          id="statusFilter"
+          class="filter-select"
+          [(ngModel)]="statusFilter"
+          (change)="onStatusFilterChange()">
+          <option value="all">All Status</option>
+          <option value="ACTIVE">Active</option>
+          <option value="INACTIVE">Inactive</option>
+          <option value="SUSPENDED">Suspended</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="verificationFilter" class="filter-label">
+          <i class="fas fa-shield-alt"></i>
+          Verification
+        </label>
+        <select
+          id="verificationFilter"
+          class="filter-select"
+          [(ngModel)]="verificationFilter"
+          (change)="onVerificationFilterChange()">
+          <option value="all">All Verification</option>
+          <option value="VERIFIED">Verified</option>
+          <option value="PENDING">Pending</option>
+          <option value="REJECTED">Rejected</option>
+        </select>
+      </div>
+
+      <div class="filter-actions">
+        <button
+          class="btn btn-secondary btn-sm"
+          (click)="clearFilters()">
+          <i class="fas fa-times"></i>
+          Clear Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Loading merchants...</p>
+    </div>
+  </div>
+
+  <!-- No Data State -->
+  <div *ngIf="!isLoading && filteredMerchants.length === 0 && !errorMessage" class="empty-content">
+    <i class="fas fa-store"></i>
+    <h3>No Merchants Found</h3>
+    <p *ngIf="searchTerm || statusFilter !== 'all' || verificationFilter !== 'all'">
+      No merchants match your current filters. Try adjusting your search criteria.
+    </p>
+    <p *ngIf="!searchTerm && statusFilter === 'all' && verificationFilter === 'all'">
+      No merchants have been created yet. Create your first merchant to get started.
+    </p>
+    <button
+      class="btn btn-primary"
+      routerLink="/merchants/create">
+      <i class="fas fa-plus"></i>
+      Create Merchant
+    </button>
+  </div>
+
+  <!-- Merchants Table -->
+  <div *ngIf="!isLoading && filteredMerchants.length > 0" class="table-section">
+    <div class="table-info">
+      <p class="table-summary">
+        Showing {{ filteredMerchants.length }} of {{ merchants.length }} merchants
+      </p>
+    </div>
+
+    <div class="table-container">
+      <table class="merchants-table">
+        <thead>
+          <tr>
+            <th>Merchant</th>
+            <th>Contact</th>
+            <th>Business</th>
+            <th>Status</th>
+            <th>Verification</th>
+            <th>Last Login</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let merchant of filteredMerchants" class="merchant-row">
+            <td class="name-cell">
+              <div class="merchant-info">
+                <div class="merchant-name">{{ merchant.name }}</div>
+                <div class="merchant-uid">{{ merchant.uid }}</div>
+              </div>
+            </td>
+            
+            <!-- Contact Info -->
+            <td class="contact-cell">
+              <div class="contact-info">
+                <div class="email-info">
+                  <a [href]="'mailto:' + merchant.contactEmail" class="email-link">
+                    {{ merchant.contactEmail }}
+                  </a>
+                </div>
+                <div *ngIf="merchant.contactPhone" class="phone-info">
+                  <i class="fas fa-phone"></i>
+                  {{ merchant.contactPhone }}
+                </div>
+              </div>
+            </td>
+            
+            <!-- Business Info -->
+            <td class="business-cell">
+              <div class="business-info">
+                <span *ngIf="merchant.merchantType" class="business-type-badge" [class]="getBusinessTypeBadgeClass(merchant.merchantType)">
+                  {{ merchant.merchantType }}
+                </span>
+                <div *ngIf="merchant.businessCity" class="location-info">
+                  <i class="fas fa-map-marker-alt"></i>
+                  {{ merchant.businessCity }}{{ merchant.businessState ? ', ' + merchant.businessState : '' }}
+                </div>
+              </div>
+            </td>
+            
+            <!-- Status -->
+            <td class="status-cell">
+              <span class="status-badge" [class]="getStatusBadgeClass(merchant.status)">
+                <i class="fas" [class.fa-check-circle]="merchant.status === 'ACTIVE'" 
+                   [class.fa-times-circle]="merchant.status === 'INACTIVE'" 
+                   [class.fa-ban]="merchant.status === 'SUSPENDED'"></i>
+                {{ merchant.status }}
+              </span>
+            </td>
+            
+            <!-- Verification -->
+            <td class="verification-cell">
+              <span class="verification-badge" [class.verified]="merchant.kycVerified" [class.unverified]="!merchant.kycVerified">
+                <i class="fas" [class.fa-check-circle]="merchant.kycVerified" [class.fa-clock]="!merchant.kycVerified"></i>
+                {{ merchant.kycVerified ? 'Verified' : 'Pending' }}
+              </span>
+            </td>
+            
+            <!-- Last Login -->
+            <td class="last-login-cell">
+              {{ formatDate(merchant.createdAt || null) }}
+            </td>
+            
+            <!-- Actions -->
+            <td class="actions-cell">
+              <div class="action-buttons">
+                <button 
+                  class="btn-action btn-toggle"
+                  [class.btn-activate]="merchant.status !== 'ACTIVE'"
+                  [class.btn-deactivate]="merchant.status === 'ACTIVE'"
+                  (click)="toggleMerchantStatus(merchant)"
+                  [title]="merchant.status === 'ACTIVE' ? 'Deactivate Merchant' : 'Activate Merchant'">
+                  <i class="fas" [class.fa-user-check]="merchant.status !== 'ACTIVE'" [class.fa-user-times]="merchant.status === 'ACTIVE'"></i>
+                </button>
+                
+                <button 
+                  *ngIf="merchant.status !== 'SUSPENDED'"
+                  class="btn-action btn-suspend"
+                  (click)="suspendMerchant(merchant)"
+                  title="Suspend Merchant">
+                  <i class="fas fa-ban"></i>
+                </button>
+                
+                <button 
+                  *ngIf="!merchant.kycVerified"
+                  class="btn-action btn-verify"
+                  (click)="verifyMerchant(merchant)"
+                  title="Verify Merchant">
+                  <i class="fas fa-check-circle"></i>
+                </button>
+                
+                <button 
+                  class="btn-action btn-api-keys"
+                  (click)="manageApiKeys(merchant)"
+                  title="Manage API Keys">
+                  <i class="fas fa-key"></i>
+                </button>
+                
+                <button 
+                  class="btn-action btn-crypto-keys"
+                  (click)="manageCryptoKeys(merchant)"
+                  title="Manage Crypto Keys">
+                  <i class="fas fa-lock"></i>
+                </button>
+                
+                <button 
+                  class="btn-action btn-delete"
+                  (click)="deleteMerchant(merchant)"
+                  title="Delete Merchant">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-container" *ngIf="!isLoading && totalPages > 1">
+    <div class="pagination-info">
+      Showing {{ filteredMerchants.length }} of {{ totalElements }} merchants
+    </div>
+    <div class="pagination">
+      <button 
+        class="btn btn-secondary btn-sm"
+        [disabled]="currentPage === 1"
+        (click)="currentPage = 1">
+        <i class="fas fa-angle-double-left"></i>
+        First
+      </button>
+      <button 
+        class="btn btn-secondary btn-sm"
+        [disabled]="currentPage === 1"
+        (click)="currentPage = currentPage - 1">
+        <i class="fas fa-angle-left"></i>
+        Previous
+      </button>
+      
+      <div class="page-numbers">
+        <button 
+          *ngFor="let page of getPageNumbers()"
+          class="btn btn-sm"
+          [class.btn-primary]="page === currentPage"
+          [class.btn-secondary]="page !== currentPage"
+          (click)="currentPage = page">
+          {{ page }}
+        </button>
+      </div>
+      
+      <button 
+        class="btn btn-secondary btn-sm"
+        [disabled]="currentPage === totalPages"
+        (click)="currentPage = currentPage + 1">
+        Next
+        <i class="fas fa-angle-right"></i>
+      </button>
+      <button 
+        class="btn btn-secondary btn-sm"
+        [disabled]="currentPage === totalPages"
+        (click)="currentPage = totalPages">
+        Last
+        <i class="fas fa-angle-double-right"></i>
+      </button>
+    </div>
+  </div>
+</div>

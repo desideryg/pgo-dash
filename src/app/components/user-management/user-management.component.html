@@ -1,0 +1,217 @@
+<div class="user-management-container">
+  <div class="user-management-content">
+    <!-- Header -->
+    <div class="page-header">
+      <div class="header-content">
+        <h1 class="page-title">
+          <span class="page-icon">👥</span>
+          User Management
+        </h1>
+        <div class="header-actions">
+          <button class="btn btn-primary" routerLink="/users/create">
+            <i class="fas fa-plus me-2"></i>
+            Create User
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <div *ngIf="successMessage" class="alert alert-success" role="alert">
+      <div class="alert-content">
+        <i class="fas fa-check-circle alert-icon"></i>
+        <div class="alert-text">
+          <strong>Success!</strong>
+          <p>{{ successMessage }}</p>
+        </div>
+      </div>
+      <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div *ngIf="errorMessage" class="alert alert-danger" role="alert">
+      <div class="alert-content">
+        <i class="fas fa-exclamation-triangle alert-icon"></i>
+        <div class="alert-text">
+          <strong>Error!</strong>
+          <p>{{ errorMessage }}</p>
+        </div>
+      </div>
+      <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Filters and Search -->
+    <div class="filters-section">
+      <div class="filters-row">
+        <div class="search-box">
+          <i class="fas fa-search search-icon"></i>
+          <input 
+            type="text" 
+            class="search-input" 
+            placeholder="Search users..." 
+            [(ngModel)]="searchTerm"
+            (input)="onSearch()">
+        </div>
+        
+        <div class="filter-group">
+          <label for="statusFilter" class="filter-label">Status:</label>
+          <select 
+            id="statusFilter" 
+            class="filter-select" 
+            [(ngModel)]="statusFilter"
+            (change)="onStatusFilterChange()">
+            <option value="all">All Users</option>
+            <option value="active">Active Only</option>
+            <option value="inactive">Inactive Only</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="table-container">
+      <div *ngIf="isLoading" class="loading-state">
+        <div class="spinner-border" role="status">
+          <span class="sr-only">Loading...</span>
+        </div>
+        <p>Loading users...</p>
+      </div>
+
+      <div *ngIf="!isLoading && getFilteredUsers().length === 0" class="empty-state">
+        <i class="fas fa-users empty-icon"></i>
+        <h3>No users found</h3>
+        <p>No users match your current search criteria.</p>
+        <button class="btn btn-primary" routerLink="/users/create">
+          <i class="fas fa-plus me-2"></i>
+          Create First User
+        </button>
+      </div>
+
+      <div *ngIf="!isLoading && getFilteredUsers().length > 0" class="table-wrapper">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Email</th>
+              <th>Roles</th>
+              <th>Status</th>
+              <th>Last Login</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let user of getFilteredUsers()" class="user-row">
+              <td class="user-info-cell">
+                <div class="user-avatar">
+                  <i class="fas fa-user"></i>
+                </div>
+                <div class="user-details">
+                  <div class="user-name">{{ user.displayName }}</div>
+                  <div class="user-username">{{ '@' + user.username }}</div>
+                </div>
+              </td>
+              <td class="email-cell">
+                <a [href]="'mailto:' + user.email" class="email-link">
+                  {{ user.email }}
+                </a>
+              </td>
+              <td class="roles-cell">
+                <div class="roles-container">
+                  <span 
+                    *ngFor="let role of user.roles" 
+                    class="role-badge"
+                    [class]="getRoleBadgeClass(role)">
+                    {{ role }}
+                  </span>
+                </div>
+              </td>
+              <td class="status-cell">
+                <span 
+                  class="status-badge"
+                  [class.status-active]="user.active"
+                  [class.status-inactive]="!user.active">
+                  <i class="fas" [class.fa-check-circle]="user.active" [class.fa-times-circle]="!user.active"></i>
+                  {{ user.active ? 'Active' : 'Inactive' }}
+                </span>
+                <span *ngIf="user.locked" class="locked-badge">
+                  <i class="fas fa-lock"></i>
+                  Locked
+                </span>
+              </td>
+              <td class="last-login-cell">
+                {{ formatDate(user.lastLoginAt || null) }}
+              </td>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button 
+                    class="btn-action btn-toggle"
+                    [class.btn-activate]="!user.active"
+                    [class.btn-deactivate]="user.active"
+                    (click)="toggleUserStatus(user)"
+                    [title]="user.active ? 'Deactivate User' : 'Activate User'">
+                    <i class="fas" [class.fa-user-check]="!user.active" [class.fa-user-times]="user.active"></i>
+                  </button>
+                  
+                  <button 
+                    class="btn-action btn-lock"
+                    [class.btn-unlock]="user.locked"
+                    [class.btn-lock]="!user.locked"
+                    (click)="toggleUserLock(user)"
+                    [title]="user.locked ? 'Unlock User' : 'Lock User'">
+                    <i class="fas" [class.fa-lock-open]="user.locked" [class.fa-lock]="!user.locked"></i>
+                  </button>
+                  
+                  <button 
+                    class="btn-action btn-delete"
+                    (click)="deleteUser(user)"
+                    title="Delete User">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div *ngIf="!isLoading && getFilteredUsers().length > 0" class="pagination-section">
+      <div class="pagination-info">
+        Showing {{ getFilteredUsers().length }} of {{ totalElements }} users
+      </div>
+      <div class="pagination-controls">
+        <button 
+          class="btn btn-secondary"
+          [disabled]="currentPage === 0"
+          (click)="goToFirstPage()">
+          <i class="fas fa-angle-double-left"></i>
+        </button>
+        <button 
+          class="btn btn-secondary"
+          [disabled]="currentPage === 0"
+          (click)="goToPreviousPage()">
+          <i class="fas fa-angle-left"></i>
+        </button>
+        <span class="page-info">
+          Page {{ currentPage + 1 }} of {{ totalPages }}
+        </span>
+        <button 
+          class="btn btn-secondary"
+          [disabled]="currentPage >= totalPages - 1"
+          (click)="goToNextPage()">
+          <i class="fas fa-angle-right"></i>
+        </button>
+        <button 
+          class="btn btn-secondary"
+          [disabled]="currentPage >= totalPages - 1"
+          (click)="goToLastPage()">
+          <i class="fas fa-angle-double-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

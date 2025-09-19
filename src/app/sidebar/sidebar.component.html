@@ -1,0 +1,105 @@
+<div class="sidebar" [class.collapsed]="isCollapsed">
+  <!-- Sidebar Header -->
+  <div class="sidebar-header">
+    <div class="logo" *ngIf="!isCollapsed">
+      <span class="logo-icon">🚀</span>
+      <span class="logo-text">PGO Engine</span>
+    </div>
+    <div class="logo-collapsed" *ngIf="isCollapsed">
+      <span class="logo-icon">🚀</span>
+    </div>
+    <button class="toggle-btn" (click)="onToggleSidebar()">
+      <span class="toggle-icon" [class.rotated]="!isCollapsed">☰</span>
+    </button>
+  </div>
+
+  <!-- Navigation Menu -->
+  <nav class="sidebar-nav">
+    <ul class="menu-list">
+      <li *ngFor="let item of menuItems" class="menu-item-container">
+        <!-- Main Menu Item -->
+        <div 
+          class="menu-item" 
+          [class.has-children]="hasChildren(item)"
+          [class.expanded]="item.expanded"
+          (click)="onMenuItemClick(item)"
+        >
+          <div class="menu-item-content">
+            <span class="menu-icon">{{ item.icon }}</span>
+            <span class="menu-label" *ngIf="!isCollapsed">{{ item.label }}</span>
+            <span 
+              class="expand-icon" 
+              *ngIf="hasChildren(item) && !isCollapsed"
+              [class.expanded]="item.expanded"
+            >
+              ▼
+            </span>
+          </div>
+        </div>
+
+        <!-- Submenu Items -->
+        <ul 
+          class="submenu" 
+          *ngIf="hasChildren(item) && item.expanded && !isCollapsed"
+          [class.expanded]="item.expanded"
+        >
+          <li *ngFor="let child of item.children" class="submenu-item-container">
+            <!-- Submenu Item -->
+            <div 
+              class="submenu-item" 
+              [class.has-children]="hasChildren(child)"
+              [class.expanded]="child.expanded"
+              (click)="onMenuItemClick(child)"
+            >
+              <div class="submenu-item-content">
+                <span class="submenu-icon">{{ child.icon }}</span>
+                <span class="submenu-label">{{ child.label }}</span>
+                <span 
+                  class="expand-icon" 
+                  *ngIf="hasChildren(child)"
+                  [class.expanded]="child.expanded"
+                >
+                  ▼
+                </span>
+              </div>
+            </div>
+
+            <!-- Third Level Menu Items -->
+            <ul 
+              class="submenu-level-2" 
+              *ngIf="hasChildren(child) && child.expanded"
+              [class.expanded]="child.expanded"
+            >
+              <li *ngFor="let grandChild of child.children" class="submenu-level-2-item-container">
+                <div 
+                  class="submenu-level-2-item" 
+                  (click)="onMenuItemClick(grandChild)"
+                >
+                  <div class="submenu-level-2-item-content">
+                    <span class="submenu-level-2-icon">{{ grandChild.icon }}</span>
+                    <span class="submenu-level-2-label">{{ grandChild.label }}</span>
+                  </div>
+                </div>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Sidebar Footer -->
+  <div class="sidebar-footer" *ngIf="!isCollapsed">
+    <div class="user-info">
+      <div class="user-avatar">👤</div>
+      <div class="user-details">
+        <div class="user-name">Admin User</div>
+        <div class="user-role">Administrator</div>
+      </div>
+    </div>
+    <button class="logout-btn">
+      <span class="logout-icon">🚪</span>
+      <span class="logout-text">Logout</span>
+    </button>
+  </div>
+</div>

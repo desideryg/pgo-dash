@@ -1,0 +1,8 @@
+{
+  "/api": {
+    "target": "https://pgo-api.otapp.live",
+    "secure": true,
+    "changeOrigin": true,
+    "logLevel": "debug"
+  }
+}

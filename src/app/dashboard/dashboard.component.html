@@ -1,0 +1,97 @@
+<div class="dashboard-container">
+  <!-- Dashboard Header -->
+  <header class="dashboard-header">
+    <div class="header-content">
+      <h1 class="dashboard-title">
+        <span class="title-icon">🚀</span>
+        {{ title }}
+      </h1>
+      <div class="date-time">
+        <span class="date">{{ currentDate }}</span>
+        <span class="time">{{ currentTime }}</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Stats Grid -->
+  <section class="stats-section">
+    <h2 class="section-title">System Overview</h2>
+    <div class="stats-grid">
+      <div 
+        *ngFor="let stat of stats" 
+        class="stat-card stat-{{ stat.color }}"
+      >
+        <div class="stat-icon">{{ stat.icon }}</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ stat.value }}</div>
+          <div class="stat-label">{{ stat.label }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Main Content Grid -->
+  <section class="main-content">
+    <!-- Recent Activities -->
+    <div class="content-card activities-card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <span class="card-icon">📋</span>
+          Recent Activities
+        </h3>
+      </div>
+      <div class="card-content">
+        <div class="activities-list">
+          <div 
+            *ngFor="let activity of recentActivities" 
+            class="activity-item {{ getActivityClass(activity.type) }}"
+          >
+            <div class="activity-icon">{{ getActivityIcon(activity.type) }}</div>
+            <div class="activity-content">
+              <div class="activity-action">{{ activity.action }}</div>
+              <div class="activity-details">
+                <span class="activity-user">{{ activity.user }}</span>
+                <span class="activity-time">{{ activity.time }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="content-card actions-card">
+      <div class="card-header">
+        <h3 class="card-title">
+          <span class="card-icon">⚡</span>
+          Quick Actions
+        </h3>
+      </div>
+      <div class="card-content">
+        <div class="actions-grid">
+          <button class="action-btn action-primary" routerLink="/users/create">
+            <span class="btn-icon">👥</span>
+            Create User
+          </button>
+          <button class="action-btn action-secondary" routerLink="/users">
+            <span class="btn-icon">📋</span>
+            Manage Users
+          </button>
+          <button class="action-btn action-success">
+            <span class="btn-icon">📊</span>
+            View Reports
+          </button>
+          <button class="action-btn action-warning">
+            <span class="btn-icon">🔧</span>
+            Maintenance
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="dashboard-footer">
+    <p>&copy; 2024 PGO Engine Dashboard. All rights reserved.</p>
+  </footer>
+</div>

@@ -1,0 +1,213 @@
+<!-- Header Section -->
+<div class="page-header">
+  <div class="header-content">
+    <h1>Role Management</h1>
+    <p>Manage system roles and permissions</p>
+  </div>
+  <div class="header-actions">
+    <button 
+      class="btn btn-primary" 
+      (click)="showCreateRoleForm()"
+      [disabled]="loading || availableRoles.length === 0"
+      [title]="availableRoles.length === 0 ? 'All predefined roles have been created' : 'Create a new role'">
+      <span class="icon">➕</span>
+      Create Role
+    </button>
+  </div>
+</div>
+
+<!-- Success/Error Messages -->
+<div class="messages" *ngIf="success || error">
+  <div class="alert alert-success" *ngIf="success">
+    <span class="icon">✅</span>
+    {{ success }}
+    <button class="close-btn" (click)="clearMessages()">×</button>
+  </div>
+  <div class="alert alert-error" *ngIf="error">
+    <span class="icon">❌</span>
+    {{ error }}
+    <button class="close-btn" (click)="clearMessages()">×</button>
+  </div>
+</div>
+
+<!-- Create Role Form -->
+<div class="modal-overlay" *ngIf="showCreateForm" (click)="hideCreateForm()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Create New Role</h2>
+      <button class="close-btn" (click)="hideCreateForm()">×</button>
+    </div>
+    
+    <form [formGroup]="createRoleForm" (ngSubmit)="createRole()" class="form">
+      <div class="form-group">
+        <label for="roleName">Select Role *</label>
+        <select
+          id="roleName"
+          formControlName="name"
+          class="form-control"
+          (change)="onRoleSelectionChange()"
+          [class.error]="createRoleForm.get('name')?.invalid && createRoleForm.get('name')?.touched">
+          <option value="">-- Select a role --</option>
+          <option *ngFor="let role of availableRoles" [value]="role.value" [title]="role.description">
+            {{ role.displayName }} ({{ role.value }}) • {{ role.description }}
+          </option>
+        </select>
+        <small class="form-text">Choose from predefined system roles</small>
+        <div class="error-text" *ngIf="createRoleForm.get('name')?.invalid && createRoleForm.get('name')?.touched">
+          <span *ngIf="createRoleForm.get('name')?.errors?.['required']">Please select a role</span>
+        </div>
+        <div class="info-text" *ngIf="availableRoles.length === 0 && !loading">
+          <span>All predefined roles have been created.</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="displayName">Display Name</label>
+        <input
+          type="text"
+          id="displayName"
+          formControlName="displayName"
+          class="form-control"
+          placeholder="e.g., Finance Administrator">
+        <small class="form-text">Human-readable name (automatically set from selection)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="description">Description</label>
+        <textarea
+          id="description"
+          formControlName="description"
+          class="form-control"
+          rows="3"
+          placeholder="Brief description of the role's purpose"></textarea>
+        <small class="form-text">Description of the role's responsibilities (automatically set from selection)</small>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" (click)="hideCreateForm()">Cancel</button>
+        <button type="submit" class="btn btn-primary" [disabled]="loading || createRoleForm.invalid">
+          <span *ngIf="loading" class="spinner"></span>
+          {{ loading ? 'Creating...' : 'Create Role' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<!-- Search and Filters -->
+<div class="search-section">
+  <div class="search-container">
+    <div class="search-input-group">
+      <span class="search-icon">🔍</span>
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        (input)="applyFilter()"
+        placeholder="Search roles by name, display name, or description..."
+        class="search-input">
+      <button 
+        *ngIf="searchTerm" 
+        class="clear-search"
+        (click)="searchTerm = ''; applyFilter()">
+        ×
+      </button>
+    </div>
+  </div>
+  
+  <div class="results-info">
+    <span>Showing {{ paginatedRoles.length }} of {{ totalItems }} roles</span>
+  </div>
+</div>
+
+<!-- Loading State -->
+<div class="loading-container" *ngIf="loading && roles.length === 0">
+  <div class="spinner-large"></div>
+  <p>Loading roles...</p>
+</div>
+
+<!-- Roles Table -->
+<div class="table-container" *ngIf="!loading || roles.length > 0">
+  <table class="data-table" *ngIf="paginatedRoles.length > 0; else noRoles">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Role Name</th>
+        <th>Display Name</th>
+        <th>Description</th>
+        <th>Created</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let role of paginatedRoles; trackBy: trackByRoleId">
+        <td>{{ role.id }}</td>
+        <td>
+          <span class="role-badge" [ngClass]="getRoleClass(role.name)">
+            {{ role.name }}
+          </span>
+        </td>
+        <td>{{ role.displayName }}</td>
+        <td class="description-cell" [title]="role.description">
+          {{ role.description }}
+        </td>
+        <td>
+          <span *ngIf="role.createdAt" class="date-text">
+            {{ role.createdAt | date:'short' }}
+          </span>
+          <span *ngIf="!role.createdAt" class="text-muted">-</span>
+        </td>
+        <td class="actions-cell">
+          <div class="action-buttons">
+            <span class="no-actions-text">No actions available</span>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- No Roles Message -->
+  <ng-template #noRoles>
+    <div class="no-data">
+      <div class="no-data-icon">🔐</div>
+      <h3>No roles found</h3>
+      <p *ngIf="searchTerm">No roles match your search criteria.</p>
+      <p *ngIf="!searchTerm">No roles have been created yet.</p>
+      <button 
+        class="btn btn-primary"
+        (click)="showCreateRoleForm()"
+        *ngIf="!searchTerm">
+        Create First Role
+      </button>
+      <button 
+        class="btn btn-secondary"
+        (click)="searchTerm = ''; applyFilter()"
+        *ngIf="searchTerm">
+        Clear Search
+      </button>
+    </div>
+  </ng-template>
+</div>
+
+<!-- Pagination -->
+<div class="pagination-container" *ngIf="totalPages > 1">
+  <div class="pagination">
+    <button 
+      class="pagination-btn"
+      [disabled]="currentPage === 1"
+      (click)="onPageChange(currentPage - 1)">
+      ← Previous
+    </button>
+    
+    <span class="pagination-info">
+      Page {{ currentPage }} of {{ totalPages }}
+    </span>
+    
+    <button 
+      class="pagination-btn"
+      [disabled]="currentPage === totalPages"
+      (click)="onPageChange(currentPage + 1)">
+      Next →
+    </button>
+  </div>
+</div>

@@ -1,0 +1,224 @@
+<div class="payment-gateway-management-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">
+        <i class="fas fa-credit-card"></i>
+        Payment Gateway Management
+      </h1>
+      <p class="page-subtitle">Manage payment gateways and their configurations</p>
+    </div>
+    <div class="header-actions">
+      <button
+        class="btn btn-primary"
+        routerLink="/payment-gateways/create">
+        <i class="fas fa-plus"></i>
+        Create Payment Gateway
+      </button>
+    </div>
+  </div>
+
+  <!-- Alert Messages -->
+  <div class="alert-container">
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="alert alert-error" role="alert">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ errorMessage }}
+    </div>
+    <!-- Success Message -->
+    <div *ngIf="successMessage" class="alert alert-success" role="alert">
+      <i class="fas fa-check-circle"></i>
+      {{ successMessage }}
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters-section">
+    <div class="filters-row">
+      <div class="filter-group">
+        <label for="searchTerm" class="filter-label">
+          <i class="fas fa-search"></i>
+          Search
+        </label>
+        <input
+          type="text"
+          id="searchTerm"
+          class="filter-input"
+          [(ngModel)]="searchTerm"
+          (input)="applyFilters()"
+          placeholder="Search by name or code...">
+      </div>
+
+      <div class="filter-group">
+        <label for="statusFilter" class="filter-label">
+          <i class="fas fa-filter"></i>
+          Status
+        </label>
+        <select
+          id="statusFilter"
+          class="filter-select"
+          [(ngModel)]="statusFilter"
+          (change)="applyFilters()">
+          <option value="">All Statuses</option>
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+          <option value="Maintenance">Maintenance</option>
+          <option value="Suspended">Suspended</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="methodFilter" class="filter-label">
+          <i class="fas fa-credit-card"></i>
+          Payment Method
+        </label>
+        <select
+          id="methodFilter"
+          class="filter-select"
+          [(ngModel)]="methodFilter"
+          (change)="applyFilters()">
+          <option value="">All Methods</option>
+          <option value="MNO">Mobile Money</option>
+          <option value="CARD">Card</option>
+          <option value="BANK">Bank Transfer</option>
+          <option value="WALLET">Digital Wallet</option>
+        </select>
+      </div>
+
+      <div class="filter-actions">
+        <button
+          class="btn btn-secondary btn-sm"
+          (click)="clearFilters()">
+          <i class="fas fa-times"></i>
+          Clear Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-container">
+    <div class="loading-spinner">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p>Loading payment gateways...</p>
+    </div>
+  </div>
+
+  <!-- No Data State -->
+  <div *ngIf="!isLoading && filteredPaymentGateways.length === 0 && !errorMessage" class="empty-content">
+    <i class="fas fa-credit-card"></i>
+    <h3>No Payment Gateways Found</h3>
+    <p *ngIf="searchTerm || statusFilter || methodFilter">
+      No payment gateways match your current filters. Try adjusting your search criteria.
+    </p>
+    <p *ngIf="!searchTerm && !statusFilter && !methodFilter">
+      No payment gateways have been created yet. Create your first payment gateway to get started.
+    </p>
+    <button
+      class="btn btn-primary"
+      routerLink="/payment-gateways/create">
+      <i class="fas fa-plus"></i>
+      Create Payment Gateway
+    </button>
+  </div>
+
+  <!-- Payment Gateways Table -->
+  <div *ngIf="!isLoading && filteredPaymentGateways.length > 0" class="table-section">
+    <div class="table-info">
+      <p class="table-summary">
+        Showing {{ filteredPaymentGateways.length }} of {{ paymentGateways.length }} payment gateways
+      </p>
+    </div>
+
+    <div class="table-container">
+      <table class="payment-gateways-table">
+        <thead>
+          <tr>
+            <th>Gateway</th>
+            <th>Code</th>
+            <th>Status</th>
+            <th>Supported Methods</th>
+            <th>API URLs</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let pg of filteredPaymentGateways" class="gateway-row">
+            <td class="name-cell">
+              <div class="gateway-info">
+                <div class="gateway-name">{{ pg.name }}</div>
+                <div class="gateway-uid">{{ pg.uid }}</div>
+              </div>
+            </td>
+            <td class="code-cell">
+              <span class="gateway-code">{{ pg.code }}</span>
+            </td>
+            <td class="status-cell">
+              <span class="status-badge" [class]="getStatusBadgeClass(pg.activeStatus)">
+                <i class="fas" [class.fa-check-circle]="pg.activeStatus === 'Active'"
+                   [class.fa-times-circle]="pg.activeStatus === 'Inactive'"
+                   [class.fa-tools]="pg.activeStatus === 'Maintenance'"
+                   [class.fa-ban]="pg.activeStatus === 'Suspended'"></i>
+                {{ pg.activeStatus }}
+              </span>
+            </td>
+            <td class="methods-cell">
+              <div class="methods-list">
+                <span *ngFor="let method of pg.supportedMethods" 
+                      class="method-badge" 
+                      [class]="getMethodBadgeClass(cleanMethod(method))">
+                  {{ cleanMethod(method) }}
+                </span>
+              </div>
+            </td>
+            <td class="urls-cell">
+              <div class="url-info">
+                <div *ngIf="pg.productionApiBaseUrl" class="url-item">
+                  <span class="url-label">Production:</span>
+                  <span class="url-value">{{ pg.productionApiBaseUrl }}</span>
+                </div>
+                <div *ngIf="pg.sandboxApiBaseUrl" class="url-item">
+                  <span class="url-label">Sandbox:</span>
+                  <span class="url-value">{{ pg.sandboxApiBaseUrl }}</span>
+                </div>
+                <div *ngIf="!pg.productionApiBaseUrl && !pg.sandboxApiBaseUrl" class="no-urls">
+                  No URLs configured
+                </div>
+              </div>
+            </td>
+            <td class="created-cell">
+              {{ formatDate(pg.createdAt) }}
+            </td>
+            <td class="actions-cell">
+              <div class="action-buttons">
+                <button
+                  class="btn-action btn-toggle"
+                  [class.btn-activate]="pg.activeStatus !== 'Active'"
+                  [class.btn-deactivate]="pg.activeStatus === 'Active'"
+                  (click)="toggleStatus(pg)"
+                  [title]="pg.activeStatus === 'Active' ? 'Deactivate' : 'Activate'">
+                  <i class="fas" [class.fa-play]="pg.activeStatus !== 'Active'"
+                     [class.fa-pause]="pg.activeStatus === 'Active'"></i>
+                </button>
+
+                <button
+                  class="btn-action btn-edit"
+                  [title]="'Edit Payment Gateway'">
+                  <i class="fas fa-edit"></i>
+                </button>
+
+                <button
+                  class="btn-action btn-delete"
+                  (click)="deletePaymentGateway(pg)"
+                  title="Delete Payment Gateway">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

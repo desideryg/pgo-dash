@@ -1,0 +1,261 @@
+<div class="disbursement-management">
+  <div class="page-header">
+    <h1>Disbursement Management</h1>
+    <p>View and manage disbursements for transactions</p>
+    <div *ngIf="filterForm.transactionUid" class="debug-info">
+      <small class="text-info">
+        <i class="fas fa-info-circle"></i> 
+        Filtering by Transaction UID: <strong>{{filterForm.transactionUid}}</strong>
+      </small>
+    </div>
+  </div>
+
+  <!-- Filters Panel -->
+  <div class="filters-panel">
+    <div class="filters-header">
+      <h3>Filters</h3>
+      <button class="btn btn-secondary" (click)="clearFilters()">Clear Filters</button>
+    </div>
+    
+    <div class="filters-grid">
+      <div class="filter-group">
+        <label for="transactionUid">Transaction</label>
+        <select id="transactionUid" [(ngModel)]="filterForm.transactionUid" class="form-control">
+          <option value="">All Transactions</option>
+          <option *ngFor="let transaction of transactions" [value]="transaction.uid">
+            {{transaction.uid}} - {{transaction.amount}} {{transaction.currency}}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="status">Status</label>
+        <select id="status" [(ngModel)]="filterForm.status" class="form-control">
+          <option value="">All Statuses</option>
+          <option *ngFor="let status of statusOptions" [value]="status">
+            {{status}}
+          </option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="merchantId">Merchant ID</label>
+        <input 
+          type="text" 
+          id="merchantId" 
+          [(ngModel)]="filterForm.merchantId" 
+          class="form-control" 
+          placeholder="Enter merchant ID"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label for="pgoId">PGO ID</label>
+        <input 
+          type="text" 
+          id="pgoId" 
+          [(ngModel)]="filterForm.pgoId" 
+          class="form-control" 
+          placeholder="Enter PGO ID"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label for="startDate">Start Date</label>
+        <input 
+          type="date" 
+          id="startDate" 
+          [(ngModel)]="filterForm.startDate" 
+          class="form-control"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label for="endDate">End Date</label>
+        <input 
+          type="date" 
+          id="endDate" 
+          [(ngModel)]="filterForm.endDate" 
+          class="form-control"
+        >
+      </div>
+
+      <div class="filter-group">
+        <label for="search">Search</label>
+        <input 
+          type="text" 
+          id="search" 
+          [(ngModel)]="filterForm.search" 
+          class="form-control" 
+          placeholder="Search disbursements..."
+        >
+      </div>
+    </div>
+
+    <div class="filters-actions">
+      <button class="btn btn-primary" (click)="applyFilters()">Apply Filters</button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner"></div>
+    <p>Loading disbursements...</p>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="error" class="error-state">
+    <div class="error-icon">
+      <i class="fas fa-exclamation-triangle"></i>
+    </div>
+    <h3>Error</h3>
+    <p>{{error}}</p>
+    <button class="btn btn-primary" (click)="loadDisbursements()">Retry</button>
+  </div>
+
+  <!-- Disbursements Table -->
+  <div *ngIf="!loading && !error && disbursements.length > 0" class="disbursements-table">
+    <div class="table-header">
+      <h3>Disbursements ({{totalElements}} total)</h3>
+    </div>
+    
+    <div class="table-responsive">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>UID</th>
+            <th>Transaction</th>
+            <th>Amount</th>
+            <th>Recipient</th>
+            <th>Account</th>
+            <th>Status</th>
+            <th>PGO</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let disbursement of disbursements">
+            <td>
+              <span class="uid">{{disbursement.uid}}</span>
+            </td>
+            <td>
+              <div class="transaction-info">
+                <span class="transaction-uid">{{disbursement.sourceTransactionId}}</span>
+                <small class="text-muted">{{getTransactionById(disbursement.sourceTransactionId)?.amount}} {{getTransactionById(disbursement.sourceTransactionId)?.currency}}</small>
+              </div>
+            </td>
+            <td>
+              <span class="amount">{{formatCurrency(disbursement.amount, disbursement.currency)}}</span>
+            </td>
+            <td>
+              <span class="recipient-name">{{disbursement.recipientName}}</span>
+            </td>
+            <td>
+              <span class="account">{{disbursement.recipientAccount}}</span>
+            </td>
+            <td>
+              <span class="status" [ngClass]="getStatusClass(disbursement.status)">
+                {{disbursement.status}}
+              </span>
+            </td>
+            <td>
+              <div class="pgo-info">
+                <span class="pgo-name">{{disbursement.pgoName}}</span>
+                <small class="text-muted">{{disbursement.pgoId}}</small>
+              </div>
+            </td>
+            <td>
+              <span class="date">{{formatDate(disbursement.createdAt)}}</span>
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn btn-sm btn-outline-primary" title="View Details">
+                  <i class="fas fa-eye"></i>
+                </button>
+                <button 
+                  *ngIf="disbursement.status === DisbursementStatus.PENDING" 
+                  class="btn btn-sm btn-outline-success" 
+                  title="Process"
+                >
+                  <i class="fas fa-play"></i>
+                </button>
+                <button 
+                  *ngIf="disbursement.status === DisbursementStatus.PENDING" 
+                  class="btn btn-sm btn-outline-danger" 
+                  title="Cancel"
+                >
+                  <i class="fas fa-times"></i>
+                </button>
+                <button 
+                  *ngIf="disbursement.status === DisbursementStatus.FAILED" 
+                  class="btn btn-sm btn-outline-warning" 
+                  title="Retry"
+                  (click)="retryDisbursement(disbursement)"
+                >
+                  <i class="fas fa-redo"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    <div class="pagination" *ngIf="totalPages > 1">
+      <div class="pagination-info">
+        Showing {{(currentPage * pageSize) + 1}} to {{Math.min((currentPage + 1) * pageSize, totalElements)}} of {{totalElements}} disbursements
+      </div>
+      
+      <div class="pagination-controls">
+        <button 
+          class="btn btn-outline-primary" 
+          [disabled]="currentPage === 0"
+          (click)="onPageChange(currentPage - 1)"
+        >
+          Previous
+        </button>
+        
+        <span class="page-numbers">
+          <button 
+            *ngFor="let page of [].constructor(totalPages); let i = index"
+            class="btn"
+            [class.btn-primary]="i === currentPage"
+            [class.btn-outline-primary]="i !== currentPage"
+            (click)="onPageChange(i)"
+          >
+            {{i + 1}}
+          </button>
+        </span>
+        
+        <button 
+          class="btn btn-outline-primary" 
+          [disabled]="currentPage === totalPages - 1"
+          (click)="onPageChange(currentPage + 1)"
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div *ngIf="!loading && !error && disbursements.length === 0" class="empty-state">
+    <div class="empty-icon">
+      <i class="fas fa-money-bill-wave"></i>
+    </div>
+    <h3>No disbursements found</h3>
+    <p *ngIf="!filterForm.transactionUid">Select a transaction to view its disbursements, or adjust your filters.</p>
+    <div *ngIf="filterForm.transactionUid">
+      <p>No disbursements found for transaction: <strong>{{filterForm.transactionUid}}</strong></p>
+      <p class="text-muted">This could mean:</p>
+      <ul class="text-muted">
+        <li>The transaction has no disbursements yet</li>
+        <li>The disbursements are still being processed</li>
+        <li>There might be a data mapping issue</li>
+      </ul>
+      <button class="btn btn-secondary" (click)="clearFilters()">View All Disbursements</button>
+    </div>
+  </div>
+</div>

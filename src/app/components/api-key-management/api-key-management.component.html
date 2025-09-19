@@ -1,0 +1,392 @@
+<div class="api-key-management-container">
+  <!-- Header -->
+  <div class="api-key-header">
+    <div class="header-content">
+      <div class="header-top">
+        <button 
+          class="btn btn-secondary btn-sm back-btn" 
+          (click)="goBackToMerchants()">
+          <i class="fas fa-arrow-left"></i>
+          Back to Merchants
+        </button>
+      </div>
+      <h2 class="section-title">
+        <i class="fas fa-key"></i>
+        API Key Management
+      </h2>
+      <p class="section-subtitle">Manage API keys for {{ merchantName }}</p>
+    </div>
+    <div class="header-actions">
+      <button 
+        class="btn btn-primary" 
+        (click)="showCreateForm = true"
+        [disabled]="isLoading">
+        <i class="fas fa-plus"></i>
+        Create API Key
+      </button>
+    </div>
+  </div>
+
+  <!-- Merchant Information Card -->
+  <div *ngIf="merchant" class="merchant-info-card">
+    <div class="merchant-header">
+      <div class="merchant-avatar">
+        <i class="fas fa-building"></i>
+      </div>
+      <div class="merchant-details">
+        <h3 class="merchant-name">{{ merchant.name }}</h3>
+        <p class="merchant-code">{{ merchant.code }}</p>
+        <div class="merchant-status">
+          <span class="status-badge" [class.status-pending]="merchant.status === 'PENDING'" 
+                [class.status-active]="merchant.status === 'ACTIVE'" 
+                [class.status-inactive]="merchant.status === 'INACTIVE'"
+                [class.status-suspended]="merchant.status === 'SUSPENDED'">
+            <i class="fas" [class.fa-clock]="merchant.status === 'PENDING'"
+               [class.fa-check-circle]="merchant.status === 'ACTIVE'"
+               [class.fa-times-circle]="merchant.status === 'INACTIVE'"
+               [class.fa-ban]="merchant.status === 'SUSPENDED'"></i>
+            {{ merchant.status }}
+          </span>
+          <span *ngIf="merchant.kycVerified" class="kyc-badge verified">
+            <i class="fas fa-shield-alt"></i>
+            KYC Verified
+          </span>
+          <span *ngIf="!merchant.kycVerified" class="kyc-badge unverified">
+            <i class="fas fa-exclamation-triangle"></i>
+            KYC Pending
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="merchant-info-grid">
+      <div class="info-section">
+        <h4 class="info-title">
+          <i class="fas fa-info-circle"></i>
+          Business Information
+        </h4>
+        <div class="info-items">
+          <div class="info-item">
+            <span class="info-label">Business Name:</span>
+            <span class="info-value">{{ merchant.businessName }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Registration Number:</span>
+            <span class="info-value">{{ merchant.businessRegistrationNumber }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Business Type:</span>
+            <span class="info-value">{{ merchant.merchantType }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Role:</span>
+            <span class="info-value">{{ merchant.merchantRole || 'Not assigned' }}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h4 class="info-title">
+          <i class="fas fa-map-marker-alt"></i>
+          Location Information
+        </h4>
+        <div class="info-items">
+          <div class="info-item">
+            <span class="info-label">Address:</span>
+            <span class="info-value">{{ merchant.businessAddress }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">City:</span>
+            <span class="info-value">{{ merchant.businessCity }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">State:</span>
+            <span class="info-value">{{ merchant.businessState }}</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Country:</span>
+            <span class="info-value">{{ merchant.businessCountry }}</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h4 class="info-title">
+          <i class="fas fa-phone"></i>
+          Contact Information
+        </h4>
+        <div class="info-items">
+          <div class="info-item">
+            <span class="info-label">Email:</span>
+            <span class="info-value">
+              <a [href]="'mailto:' + merchant.contactEmail" class="contact-link">
+                {{ merchant.contactEmail }}
+              </a>
+            </span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Phone:</span>
+            <span class="info-value">
+              <a [href]="'tel:' + merchant.contactPhone" class="contact-link">
+                {{ merchant.contactPhone }}
+              </a>
+            </span>
+          </div>
+          <div class="info-item" *ngIf="merchant.websiteUrl">
+            <span class="info-label">Website:</span>
+            <span class="info-value">
+              <a [href]="merchant.websiteUrl" target="_blank" class="contact-link">
+                {{ merchant.websiteUrl }}
+                <i class="fas fa-external-link-alt"></i>
+              </a>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alert Messages -->
+  <div class="alert-container">
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="alert alert-error" role="alert">
+      <div class="alert-content">
+        <i class="fas fa-exclamation-circle alert-icon"></i>
+        <div class="alert-text">
+          <strong>Error!</strong>
+          <p>{{ errorMessage }}</p>
+        </div>
+      </div>
+      <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Success Message -->
+    <div *ngIf="successMessage" class="alert alert-success" role="alert">
+      <div class="alert-content">
+        <i class="fas fa-check-circle alert-icon"></i>
+        <div class="alert-text">
+          <strong>Success!</strong>
+          <p>{{ successMessage }}</p>
+        </div>
+      </div>
+      <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Create API Key Confirmation -->
+  <div *ngIf="showCreateForm" class="create-confirmation">
+    <div class="confirmation-card">
+      <h3 class="confirmation-title">
+        <i class="fas fa-key"></i>
+        Create New API Key
+      </h3>
+      <p class="confirmation-text">
+        This will create a new API key for <strong>{{ merchantName }}</strong>. 
+        The API key will be valid for 1 year from creation.
+      </p>
+      <div class="confirmation-actions">
+        <button 
+          class="btn btn-secondary" 
+          (click)="showCreateForm = false"
+          [disabled]="isLoading">
+          Cancel
+        </button>
+        <button 
+          class="btn btn-primary" 
+          (click)="createApiKey()"
+          [disabled]="isLoading">
+          <i class="fas" [class.fa-spinner]="isLoading" [class.fa-key]="!isLoading" [class.fa-spin]="isLoading"></i>
+          {{ isLoading ? 'Creating...' : 'Create API Key' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- New API Key Details Modal -->
+  <div *ngIf="showApiKeyDetails && newApiKey" class="api-key-modal">
+    <div class="modal-overlay" (click)="closeApiKeyDetails()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-key"></i>
+          New API Key Created
+        </h3>
+        <button class="modal-close" (click)="closeApiKeyDetails()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="warning-box">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p><strong>Important:</strong> Please copy and save these credentials securely. The secret key will not be shown again and is not visible in the API keys list.</p>
+        </div>
+        
+        <div class="api-key-details">
+          <div class="key-field">
+            <label class="key-label">API Key</label>
+            <div class="key-value-container">
+              <input 
+                type="text" 
+                class="key-input" 
+                [value]="newApiKey.apiKey" 
+                readonly>
+              <button 
+                class="copy-btn" 
+                (click)="copyToClipboard(newApiKey.apiKey)"
+                title="Copy API Key">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="key-field" *ngIf="newApiKey.secretKey">
+            <label class="key-label">Secret Key</label>
+            <div class="key-value-container">
+              <input 
+                type="text" 
+                class="key-input" 
+                [value]="newApiKey.secretKey" 
+                readonly>
+              <button 
+                class="copy-btn" 
+                (click)="copyToClipboard(newApiKey.secretKey)"
+                title="Copy Secret Key">
+                <i class="fas fa-copy"></i>
+              </button>
+            </div>
+          </div>
+          
+          <div class="key-field">
+            <label class="key-label">Expires At</label>
+            <div class="key-info">
+              {{ formatDate(newApiKey.expiresAt) }}
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-primary" (click)="closeApiKeyDetails()">
+          <i class="fas fa-check"></i>
+          I've Saved the Credentials
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Keys List -->
+  <div class="api-keys-section">
+    <div class="section-header">
+      <h3 class="section-subtitle">Existing API Keys</h3>
+      <button 
+        class="btn btn-secondary btn-sm" 
+        (click)="loadApiKeys()"
+        [disabled]="isLoading">
+        <i class="fas fa-sync-alt" [class.fa-spin]="isLoading"></i>
+        Refresh
+      </button>
+    </div>
+
+    <!-- Loading State -->
+    <div *ngIf="isLoading && apiKeys.length === 0" class="loading-container">
+      <div class="loading-spinner">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Loading API keys...</p>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div *ngIf="!isLoading && apiKeys.length === 0" class="empty-state">
+      <div class="empty-content">
+        <i class="fas fa-key empty-icon"></i>
+        <h4>No API Keys Found</h4>
+        <p>This merchant doesn't have any API keys yet.</p>
+        <button 
+          class="btn btn-primary" 
+          (click)="showCreateForm = true">
+          <i class="fas fa-plus"></i>
+          Create First API Key
+        </button>
+      </div>
+    </div>
+
+    <!-- API Keys Table -->
+    <div *ngIf="apiKeys.length > 0" class="api-keys-table">
+      <div class="table-info">
+        <p class="table-note">
+          <i class="fas fa-info-circle"></i>
+          Secret keys are not displayed in this list for security reasons. They are only shown once when creating or regenerating an API key.
+        </p>
+      </div>
+      <div class="table-container">
+        <table class="keys-table">
+          <thead>
+            <tr>
+              <th>API Key</th>
+              <th>Status</th>
+              <th>Expires</th>
+              <th>Days Left</th>
+              <th>Last Used</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let apiKey of apiKeys" class="key-row">
+              <td class="api-key-cell">
+                <div class="api-key-display">
+                  <span class="api-key-preview">{{ apiKey.apiKey.substring(0, 8) }}...</span>
+                  <button 
+                    class="copy-btn-small" 
+                    (click)="copyToClipboard(apiKey.apiKey)"
+                    title="Copy API Key">
+                    <i class="fas fa-copy"></i>
+                  </button>
+                </div>
+              </td>
+              <td class="status-cell">
+                <span class="status-badge" [class.status-active]="!isExpired(apiKey.expiresAt)" [class.status-expired]="isExpired(apiKey.expiresAt)">
+                  <i class="fas" [class.fa-check-circle]="!isExpired(apiKey.expiresAt)" [class.fa-times-circle]="isExpired(apiKey.expiresAt)"></i>
+                  {{ isExpired(apiKey.expiresAt) ? 'Expired' : 'Active' }}
+                </span>
+              </td>
+              <td class="expires-cell">
+                {{ formatDate(apiKey.expiresAt) }}
+              </td>
+              <td class="days-cell">
+                <span class="days-badge" [class.days-warning]="getDaysUntilExpiry(apiKey.expiresAt) <= 30">
+                  {{ getDaysUntilExpiry(apiKey.expiresAt) }} days
+                </span>
+              </td>
+              <td class="last-used-cell">
+                {{ formatDate(apiKey.lastUsedAt || '') }}
+              </td>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button 
+                    class="btn-action btn-regenerate"
+                    (click)="regenerateApiKey(apiKey.apiKey)"
+                    [disabled]="isLoading"
+                    title="Regenerate API Key">
+                    <i class="fas fa-sync-alt"></i>
+                  </button>
+                  <button 
+                    class="btn-action btn-revoke"
+                    (click)="revokeApiKey(apiKey.apiKey)"
+                    [disabled]="isLoading"
+                    title="Revoke API Key">
+                    <i class="fas fa-ban"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

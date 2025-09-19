@@ -1,0 +1,733 @@
+<div class="crypto-key-management-container">
+  <!-- Header -->
+  <div class="header-section">
+    <div class="header-content">
+      <div class="header-left">
+        <button class="btn-back" (click)="goBack()">
+          <i class="fas fa-arrow-left"></i> Back to Merchants
+        </button>
+        <div class="page-title">
+          <h1>Crypto Key Management</h1>
+          <p class="merchant-info" *ngIf="merchant">
+            <strong>Merchant:</strong> {{ merchant.name }} 
+            <span class="merchant-uid">({{ merchant.uid }})</span>
+          </p>
+        </div>
+      </div>
+      <div class="header-right">
+        <button 
+          class="btn-primary" 
+          (click)="showCreateKeyForm()" 
+          [disabled]="isCreatingKey || showCreateForm"
+        >
+          <i class="fas fa-plus"></i>
+          Create Crypto Key
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  <div class="messages" *ngIf="errorMessage || successMessage">
+    <div class="alert alert-error" *ngIf="errorMessage" (click)="clearMessages()">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ errorMessage }}
+      <span class="close">&times;</span>
+    </div>
+    <div class="alert alert-success" *ngIf="successMessage" (click)="clearMessages()">
+      <i class="fas fa-check-circle"></i>
+      {{ successMessage }}
+      <span class="close">&times;</span>
+    </div>
+  </div>
+
+  <!-- Active Keys Status Alert -->
+  <div class="active-status-alert" *ngIf="hasActiveKeys === false && keyStatistics">
+    <div class="alert alert-warning">
+      <i class="fas fa-exclamation-triangle"></i>
+      <strong>No Active Crypto Keys:</strong> This merchant currently has no active crypto keys. 
+      Consider activating an existing key or creating a new one for secure operations.
+    </div>
+  </div>
+
+  <div class="active-status-alert" *ngIf="hasActiveKeys === true">
+    <div class="alert alert-info">
+      <i class="fas fa-shield-alt"></i>
+      <strong>Crypto Keys Active:</strong> This merchant has active crypto keys and is ready for secure operations.
+    </div>
+  </div>
+
+  <!-- Crypto Key Statistics Dashboard -->
+  <div class="stats-section" *ngIf="keyStatistics || isLoadingStats">
+    <div class="stats-container">
+      
+      <div class="stats-loading" *ngIf="isLoadingStats">
+        <div class="loading-spinner"></div>
+        <p>Loading key statistics...</p>
+      </div>
+
+      <div class="stats-grid" *ngIf="!isLoadingStats && keyStatistics">
+        
+        <!-- Overview Stats -->
+        <div class="stat-card overview-card">
+          <div class="stat-header">
+            <h4><i class="fas fa-chart-bar"></i> Overview</h4>
+          </div>
+          <div class="stat-content">
+            <div class="stat-item">
+              <span class="stat-label">Total Keys</span>
+              <span class="stat-value primary">{{ keyStatistics.totalKeys }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Active Keys</span>
+              <span class="stat-value success">{{ keyStatistics.activeKeys }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Total Usage</span>
+              <span class="stat-value info">{{ keyStatistics.totalUsageCount }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Avg Usage</span>
+              <span class="stat-value">{{ keyStatistics.averageUsageCount | number:'1.1-1' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Breakdown -->
+        <div class="stat-card status-card">
+          <div class="stat-header">
+            <h4><i class="fas fa-list"></i> By Status</h4>
+          </div>
+          <div class="stat-content">
+            <div class="stat-item" *ngFor="let item of getStatusEntries()">
+              <span class="stat-label">{{ getStatusDisplayName(item.status) }}</span>
+              <span class="stat-value" [ngClass]="getStatusBadgeClass(item.status)">{{ item.count }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Algorithm Breakdown -->
+        <div class="stat-card algorithm-card">
+          <div class="stat-header">
+            <h4><i class="fas fa-code"></i> By Algorithm</h4>
+          </div>
+          <div class="stat-content">
+            <div class="stat-item" *ngFor="let item of getAlgorithmEntries()">
+              <span class="stat-label">{{ item.algorithm }}</span>
+              <span class="stat-value info">{{ item.count }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Key Health -->
+        <div class="stat-card health-card">
+          <div class="stat-header">
+            <h4><i class="fas fa-heartbeat"></i> Key Health</h4>
+          </div>
+          <div class="stat-content">
+            <div class="stat-item">
+              <span class="stat-label">Expiring Soon</span>
+              <span class="stat-value" [ngClass]="keyStatistics.keysExpiringSoon > 0 ? 'warning' : 'success'">
+                {{ keyStatistics.keysExpiringSoon }}
+              </span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Oldest Key</span>
+              <span class="stat-value">{{ formatKeyAge(keyStatistics.oldestKeyAge) }}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">Newest Key</span>
+              <span class="stat-value">{{ formatKeyAge(keyStatistics.newestKeyAge) }}</span>
+            </div>
+            <div class="stat-item" *ngIf="keyStatistics.lastKeyActivation">
+              <span class="stat-label">Last Activation</span>
+              <span class="stat-value">{{ formatDate(keyStatistics.lastKeyActivation) }}</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Crypto Keys Display -->
+  <div class="active-keys-section" *ngIf="currentCryptoKey || previousCryptoKey || isLoadingCurrent || isLoadingPrevious">
+    <div class="active-keys-container">
+      
+      <!-- Current Crypto Key -->
+      <div class="key-card current-key-card" *ngIf="currentCryptoKey || isLoadingCurrent">
+        <div class="key-card-header current-header">
+          <h3><i class="fas fa-star"></i> Current Active Key</h3>
+        </div>
+        
+        <div class="key-card-content" *ngIf="!isLoadingCurrent && currentCryptoKey">
+          <div class="key-info">
+            <div class="key-detail">
+              <label>Merchant UID:</label>
+              <span class="merchant-uid">{{ currentCryptoKey.merchantUid }}</span>
+            </div>
+            <div class="key-detail">
+              <label>Public Key:</label>
+              <div class="public-key-display">
+                <textarea readonly class="key-textarea" [value]="currentCryptoKey.publicKey" rows="5"></textarea>
+                <button class="btn-copy" (click)="copyToClipboard(currentCryptoKey.publicKey)" title="Copy to clipboard">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="key-loading" *ngIf="isLoadingCurrent">
+          <div class="loading-spinner"></div>
+          <p>Loading current key...</p>
+        </div>
+        
+        <div class="no-key" *ngIf="!isLoadingCurrent && !currentCryptoKey">
+          <i class="fas fa-exclamation-triangle"></i>
+          <p>No current crypto key found.</p>
+        </div>
+      </div>
+
+      <!-- Previous Crypto Key -->
+      <div class="key-card previous-key-card" *ngIf="previousCryptoKey || isLoadingPrevious">
+        <div class="key-card-header previous-header">
+          <h3><i class="fas fa-history"></i> Previous Key</h3>
+        </div>
+        
+        <div class="key-card-content" *ngIf="!isLoadingPrevious && previousCryptoKey">
+          <div class="key-info">
+            <div class="key-detail">
+              <label>Merchant UID:</label>
+              <span class="merchant-uid">{{ previousCryptoKey.merchantUid }}</span>
+            </div>
+            <div class="key-detail">
+              <label>Public Key:</label>
+              <div class="public-key-display">
+                <textarea readonly class="key-textarea" [value]="previousCryptoKey.publicKey" rows="5"></textarea>
+                <button class="btn-copy" (click)="copyToClipboard(previousCryptoKey.publicKey)" title="Copy to clipboard">
+                  <i class="fas fa-copy"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="key-loading" *ngIf="isLoadingPrevious">
+          <div class="loading-spinner"></div>
+          <p>Loading previous key...</p>
+        </div>
+        
+        <div class="no-key" *ngIf="!isLoadingPrevious && !previousCryptoKey">
+          <i class="fas fa-info-circle"></i>
+          <p>No previous crypto key available.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Crypto Key Creation Form -->
+  <div id="crypto-key-creation-form" class="create-form-container" *ngIf="showCreateForm">
+    <div class="create-form-card">
+      <div class="form-header">
+        <h3><i class="fas fa-key"></i> Create New Crypto Key</h3>
+        <button class="btn-close" (click)="hideCreateForm()" title="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <form class="create-form" (ngSubmit)="createCryptoKey()" #createForm="ngForm">
+        
+        <!-- Form-specific Messages -->
+        <div class="form-messages" *ngIf="formErrorMessage || formSuccessMessage">
+          <div class="form-alert form-alert-error" *ngIf="formErrorMessage" (click)="clearFormMessages()">
+            <i class="fas fa-exclamation-circle"></i>
+            {{ formErrorMessage }}
+            <span class="alert-close">&times;</span>
+          </div>
+          <div class="form-alert form-alert-success" *ngIf="formSuccessMessage" (click)="clearFormMessages()">
+            <i class="fas fa-check-circle"></i>
+            {{ formSuccessMessage }}
+            <span class="alert-close">&times;</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="keyName">Key Name *</label>
+            <input 
+              type="text" 
+              id="keyName" 
+              name="keyName"
+              class="form-input"
+              [(ngModel)]="createKeyForm.keyName"
+              placeholder="Leave empty for auto-generated name"
+            >
+            <small class="form-help">Required field. If left empty, a unique name will be generated automatically</small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="keyType">Key Type *</label>
+            <select 
+              id="keyType" 
+              name="keyType"
+              class="form-select"
+              [(ngModel)]="keyType"
+              required
+            >
+              <option value="PUBLIC_KEY">Public Key</option>
+              <option value="PRIVATE_KEY">Private Key</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="keyAlgorithm">Algorithm *</label>
+            <select 
+              id="keyAlgorithm" 
+              name="keyAlgorithm"
+              class="form-select"
+              [(ngModel)]="createKeyForm.keyAlgorithm"
+              (change)="onAlgorithmChange()"
+              required
+            >
+              <option value="RSA">RSA</option>
+              <option value="EC">Elliptic Curve (EC)</option>
+              <option value="EdDSA">Edwards-curve DSA</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="keySize">Key Size *</label>
+            <select 
+              id="keySize" 
+              name="keySize"
+              class="form-select"
+              [(ngModel)]="createKeyForm.keySize"
+              required
+            >
+              <option *ngFor="let size of getAvailableKeySizes()" [value]="size">
+                {{ size }} bits
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row" *ngIf="keyType === 'PUBLIC_KEY'">
+          <div class="form-group full-width">
+            <label for="publicKey">Public Key Data (Optional)</label>
+            <div class="key-input-container">
+              <textarea 
+                id="publicKey" 
+                name="publicKey"
+                class="form-textarea"
+                [(ngModel)]="createKeyForm.publicKey"
+                (input)="keyValidationResult = null"
+                placeholder="Paste your public key here (PEM format) or leave empty for server-side generation"
+                rows="6"
+              ></textarea>
+              <div class="key-validation-controls" *ngIf="createKeyForm.publicKey && createKeyForm.publicKey.trim() !== ''">
+                <button 
+                  type="button"
+                  class="btn-validate"
+                  (click)="validatePublicKey()"
+                  [disabled]="isValidatingKey"
+                >
+                  <i class="fas fa-check-circle" *ngIf="!isValidatingKey"></i>
+                  <i class="fas fa-spinner fa-spin" *ngIf="isValidatingKey"></i>
+                  <span *ngIf="!isValidatingKey">Validate</span>
+                  <span *ngIf="isValidatingKey">Validating...</span>
+                </button>
+                <div class="validation-result" *ngIf="keyValidationResult !== null">
+                  <span class="validation-status" [ngClass]="keyValidationResult ? 'valid' : 'invalid'">
+                    <i class="fas" [class.fa-check-circle]="keyValidationResult" [class.fa-times-circle]="!keyValidationResult"></i>
+                    {{ keyValidationResult ? 'Valid PEM Format' : 'Invalid Format' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <small class="form-help">
+              If not provided, the key will be generated server-side. 
+              For imported keys, paste the PEM-formatted public key and validate the format.
+            </small>
+          </div>
+        </div>
+
+        <div class="form-row" *ngIf="keyType === 'PRIVATE_KEY'">
+          <div class="form-group full-width">
+            <label for="privateKey">Private Key Data (Optional)</label>
+            <textarea 
+              id="privateKey" 
+              name="privateKey"
+              class="form-textarea"
+              [(ngModel)]="createKeyForm.privateKey"
+              placeholder="Paste your private key here (PEM format) or leave empty for server-side generation"
+              rows="6"
+            ></textarea>
+            <small class="form-help">
+              <i class="fas fa-exclamation-triangle text-warning"></i>
+              <strong>Warning:</strong> Private keys are sensitive data. 
+              If not provided, the key will be generated server-side.
+            </small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="expiresAt">Expiration Date (Optional)</label>
+            <input 
+              type="datetime-local" 
+              id="expiresAt" 
+              name="expiresAt"
+              class="form-input"
+              [(ngModel)]="createKeyForm.expiresAt"
+            >
+            <small class="form-help">If not provided, key will expire in 2 years</small>
+          </div>
+
+          <div class="form-group">
+            <label for="activateImmediately">
+              <input 
+                type="checkbox" 
+                id="activateImmediately" 
+                name="activateImmediately"
+                [(ngModel)]="createKeyForm.activateImmediately"
+                style="margin-right: 8px;"
+              >
+              Activate Immediately
+            </label>
+            <small class="form-help">If checked, the key will be activated immediately after creation</small>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group full-width">
+            <label for="notes">Notes (Optional)</label>
+            <textarea 
+              id="notes" 
+              name="notes"
+              class="form-textarea"
+              [(ngModel)]="createKeyForm.notes"
+              placeholder="Add any notes about this crypto key..."
+              rows="3"
+            ></textarea>
+            <small class="form-help">Optional notes about the purpose or usage of this key</small>
+          </div>
+        </div>
+
+        <!-- Debug Info (remove in production) -->
+        <div class="debug-info" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0; font-family: monospace; font-size: 12px;">
+          <strong>Request Data Preview:</strong>
+          <pre>{{ getRequestPreview() | json }}</pre>
+        </div>
+
+        <div class="form-actions">
+          <button 
+            type="button" 
+            class="btn-secondary" 
+            (click)="hideCreateForm()"
+            [disabled]="isCreatingKey"
+          >
+            <i class="fas fa-times"></i>
+            Cancel
+          </button>
+          <button 
+            type="submit" 
+            class="btn-primary"
+            [disabled]="!createForm.valid || isCreatingKey"
+          >
+            <i class="fas fa-key"></i>
+            <span *ngIf="!isCreatingKey">Create Crypto Key</span>
+            <span *ngIf="isCreatingKey">
+              <i class="fas fa-spinner fa-spin"></i> Creating...
+            </span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Filters Section -->
+  <div class="filters-section">
+    <div class="filters-content">
+      <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input 
+          type="text" 
+          placeholder="Search crypto keys..." 
+          [(ngModel)]="searchTerm" 
+          (input)="onSearchChange()"
+        >
+      </div>
+      
+      <div class="filter-group">
+        <select [(ngModel)]="statusFilter" (change)="onStatusFilterChange()" class="filter-select">
+          <option value="all">All Status</option>
+          <option *ngFor="let status of cryptoKeyStatuses" [value]="status.value">
+            {{ status.displayName }}
+          </option>
+        </select>
+        
+        <select [(ngModel)]="keyTypeFilter" (change)="onKeyTypeFilterChange()" class="filter-select">
+          <option value="all">All Key Types</option>
+          <option *ngFor="let type of cryptoKeyTypes" [value]="type.value">
+            {{ type.displayName }}
+          </option>
+        </select>
+        
+        <button class="btn-secondary" (click)="clearFilters()">
+          <i class="fas fa-times"></i> Clear Filters
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-container" *ngIf="isLoading">
+    <div class="loading-spinner"></div>
+    <p>Loading crypto keys...</p>
+  </div>
+
+  <!-- Crypto Keys Table -->
+  <div class="table-container" *ngIf="!isLoading">
+    <div class="table-header">
+      <h3>Crypto Keys ({{ filteredCryptoKeys.length }})</h3>
+    </div>
+    
+    <div class="table-wrapper" *ngIf="filteredCryptoKeys.length > 0">
+      <table class="crypto-keys-table">
+        <thead>
+          <tr>
+            <th>Key Name</th>
+            <th>Type</th>
+            <th>Algorithm</th>
+            <th>Status</th>
+            <th>Fingerprint</th>
+            <th>Expiry</th>
+            <th>Usage</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let key of filteredCryptoKeys" [class.expired]="isKeyExpired(key.expiresAt)">
+            <td>
+              <div class="key-name">
+                <i class="fas fa-key"></i>
+                {{ key.keyName }}
+              </div>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="getKeyTypeBadgeClass(key.keyType)">
+                {{ getKeyTypeDisplayName(key.keyType) }}
+              </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="getAlgorithmBadgeClass(key.keyAlgorithm)">
+                {{ key.keyAlgorithm }} {{ key.keySize }}
+              </span>
+            </td>
+            <td>
+              <span class="badge" [ngClass]="getStatusBadgeClass(key.keyStatus)">
+                {{ getStatusDisplayName(key.keyStatus) }}
+              </span>
+            </td>
+            <td>
+              <div class="fingerprint clickable" 
+                   [title]="'Click to view full fingerprint: ' + key.keyFingerprint"
+                   (click)="showFullFingerprint(key)">
+                {{ key.keyFingerprint.substring(0, 16) }}...
+                <i class="fas fa-external-link-alt"></i>
+              </div>
+            </td>
+            <td>
+              <div class="expiry-info">
+                <div class="expiry-date">{{ formatDate(key.expiresAt) }}</div>
+                <div class="expiry-countdown" 
+                     [ngClass]="{
+                       'expiry-warning': getDaysUntilExpiry(key.expiresAt) <= 30 && getDaysUntilExpiry(key.expiresAt) > 0,
+                       'expiry-expired': isKeyExpired(key.expiresAt)
+                     }">
+                  <span *ngIf="!isKeyExpired(key.expiresAt)">
+                    {{ getDaysUntilExpiry(key.expiresAt) }} days left
+                  </span>
+                  <span *ngIf="isKeyExpired(key.expiresAt)" class="expired-text">
+                    <i class="fas fa-exclamation-triangle"></i> Expired
+                  </span>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="usage-count">
+                <i class="fas fa-chart-line"></i>
+                {{ key.usageCount }}
+              </div>
+            </td>
+            <td>
+              <div class="created-info">
+                <div class="created-date">{{ formatDate(key.createdAt) }}</div>
+                <div class="created-by">by {{ key.createdBy }}</div>
+              </div>
+            </td>
+            <td>
+              <div class="actions">
+                <button 
+                  *ngIf="key.keyStatus !== 'REVOKED'"
+                  class="btn-action"
+                  [class.btn-activate]="!key.isActive"
+                  [class.btn-deactivate]="key.isActive"
+                  (click)="toggleKeyStatus(key)"
+                  [title]="key.isActive ? 'Deactivate Key' : 'Activate Key'"
+                >
+                  <i class="fas" [class.fa-play]="!key.isActive" [class.fa-pause]="key.isActive"></i>
+                </button>
+                
+                <button 
+                  *ngIf="key.keyStatus !== 'REVOKED'"
+                  class="btn-action btn-extend"
+                  (click)="extendKeyExpiry(key)"
+                  title="Extend Expiry"
+                >
+                  <i class="fas fa-calendar-plus"></i>
+                </button>
+                
+                <button 
+                  *ngIf="key.keyStatus !== 'REVOKED'"
+                  class="btn-action btn-revoke"
+                  (click)="revokeCryptoKey(key)"
+                  title="Revoke Key"
+                >
+                  <i class="fas fa-ban"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    
+    <!-- Empty State -->
+    <div class="empty-state" *ngIf="filteredCryptoKeys.length === 0 && !isLoading">
+      <div class="empty-content">
+        <i class="fas fa-key"></i>
+        <h3>No Crypto Keys Found</h3>
+        <p *ngIf="actualTotalKeys === 0">This merchant doesn't have any crypto keys yet.</p>
+        <p *ngIf="actualTotalKeys > 0">No crypto keys match your current filters.</p>
+        <button class="btn-primary" (click)="showCreateKeyForm()" *ngIf="actualTotalKeys === 0">
+          <i class="fas fa-plus"></i> Create First Crypto Key
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-container" *ngIf="totalPages > 1">
+    <div class="pagination">
+      <button 
+        class="page-btn" 
+        [disabled]="currentPage === 1"
+        (click)="currentPage = currentPage - 1; loadCryptoKeys()"
+      >
+        <i class="fas fa-chevron-left"></i>
+      </button>
+      
+      <button 
+        *ngFor="let page of getPageNumbers()" 
+        class="page-btn" 
+        [class.active]="page === currentPage"
+        (click)="currentPage = page; loadCryptoKeys()"
+      >
+        {{ page }}
+      </button>
+      
+      <button 
+        class="page-btn" 
+        [disabled]="currentPage === totalPages"
+        (click)="currentPage = currentPage + 1; loadCryptoKeys()"
+      >
+        <i class="fas fa-chevron-right"></i>
+      </button>
+    </div>
+    
+    <div class="pagination-info">
+      Showing {{ (currentPage - 1) * pageSize + 1 }} to {{ Math.min(currentPage * pageSize, totalElements) }} of {{ totalElements }} crypto keys
+    </div>
+  </div>
+
+  <!-- Extend Expiry Modal -->
+  <div class="modal-overlay" *ngIf="showExtendExpiryModal" [ngClass]="{'closing': isClosingModal}" (click)="closeExtendExpiryModal()">
+    <div class="modal-container" [ngClass]="{'closing': isClosingModal}" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3><i class="fas fa-calendar-plus"></i> Extend Key Expiry</h3>
+        <button class="btn-close" (click)="closeExtendExpiryModal()" title="Close">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-content" *ngIf="selectedKeyForExtension">
+        <div class="key-info-display">
+          <div class="info-row">
+            <label>Key Name:</label>
+            <span class="key-name">{{ selectedKeyForExtension.keyName }}</span>
+          </div>
+          <div class="info-row">
+            <label>Current Expiry:</label>
+            <span class="current-expiry">{{ formatDate(selectedKeyForExtension.expiresAt) }}</span>
+          </div>
+          <div class="info-row">
+            <label>Days Until Expiry:</label>
+            <span class="days-left" [ngClass]="{
+              'text-warning': getDaysUntilExpiry(selectedKeyForExtension.expiresAt) <= 30 && getDaysUntilExpiry(selectedKeyForExtension.expiresAt) > 0,
+              'text-danger': isKeyExpired(selectedKeyForExtension.expiresAt)
+            }">
+              <span *ngIf="!isKeyExpired(selectedKeyForExtension.expiresAt)">
+                {{ getDaysUntilExpiry(selectedKeyForExtension.expiresAt) }} days
+              </span>
+              <span *ngIf="isKeyExpired(selectedKeyForExtension.expiresAt)">
+                <i class="fas fa-exclamation-triangle"></i> Expired
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <div class="date-picker-section">
+          <label for="newExpiryDate">New Expiry Date & Time *</label>
+          <input 
+            type="datetime-local" 
+            id="newExpiryDate"
+            name="newExpiryDate"
+            class="modal-input"
+            [(ngModel)]="newExpiryDate"
+            required
+          >
+          <small class="help-text">Select a date and time that is after the current expiry date</small>
+        </div>
+      </div>
+      
+      <div class="modal-actions">
+        <button 
+          type="button" 
+          class="btn-secondary" 
+          (click)="closeExtendExpiryModal()"
+          [disabled]="isExtendingExpiry"
+        >
+          <i class="fas fa-times"></i>
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn-primary"
+          (click)="confirmExtendExpiry()"
+          [disabled]="!newExpiryDate || isExtendingExpiry"
+        >
+          <i class="fas fa-calendar-check" *ngIf="!isExtendingExpiry"></i>
+          <i class="fas fa-spinner fa-spin" *ngIf="isExtendingExpiry"></i>
+          <span *ngIf="!isExtendingExpiry">Extend Expiry</span>
+          <span *ngIf="isExtendingExpiry">Extending...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

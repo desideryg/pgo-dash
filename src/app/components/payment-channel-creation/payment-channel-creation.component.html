@@ -1,0 +1,205 @@
+<div class="payment-channel-creation-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-top">
+      <a routerLink="/payment-channels" class="back-btn">
+        <i class="fas fa-arrow-left"></i>
+        Back to Payment Channels
+      </a>
+    </div>
+    <h1 class="page-title">
+      <i class="fas fa-plus-circle"></i>
+      Create Payment Channel
+    </h1>
+    <p class="page-subtitle">Add a new payment channel to the system</p>
+  </div>
+
+  <!-- Alert Messages -->
+  <div class="alert-container" *ngIf="error || success">
+    <div class="alert alert-error" *ngIf="error">
+      <i class="fas fa-exclamation-circle"></i>
+      {{ error }}
+    </div>
+    <div class="alert alert-success" *ngIf="success">
+      <i class="fas fa-check-circle"></i>
+      {{ success }}
+    </div>
+  </div>
+
+  <!-- Form Container -->
+  <div class="form-container">
+    <form [formGroup]="paymentChannelForm" (ngSubmit)="onSubmit()" class="payment-channel-form">
+      
+      <!-- Basic Information Section -->
+      <div class="form-section">
+        <h2 class="section-title">
+          <i class="fas fa-info-circle"></i>
+          Basic Information
+        </h2>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="code">
+              <i class="fas fa-hashtag"></i>
+              Channel Code
+            </label>
+            <input 
+              type="text" 
+              id="code"
+              class="form-input" 
+              formControlName="code" 
+              placeholder="e.g., 1007"
+              (input)="onFormFieldChange()"
+            >
+            <div class="error-message" *ngIf="paymentChannelForm.get('code')?.invalid && paymentChannelForm.get('code')?.touched">
+              {{ getErrorMessage('code') }}
+            </div>
+            <div class="form-help">
+              Unique identifier for the payment channel (3-10 characters)
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="name">
+              <i class="fas fa-tag"></i>
+              Channel Name
+            </label>
+            <input 
+              type="text" 
+              id="name"
+              class="form-input" 
+              formControlName="name" 
+              placeholder="e.g., Mpesa"
+              (input)="onFormFieldChange()"
+            >
+            <div class="error-message" *ngIf="paymentChannelForm.get('name')?.invalid && paymentChannelForm.get('name')?.touched">
+              {{ getErrorMessage('name') }}
+            </div>
+            <div class="form-help">
+              Display name for the payment channel (2-50 characters)
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Channel Configuration Section -->
+      <div class="form-section">
+        <h2 class="section-title">
+          <i class="fas fa-cog"></i>
+          Channel Configuration
+        </h2>
+        
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="paymentChannelType">
+              <i class="fas fa-network-wired"></i>
+              Channel Type
+            </label>
+            <select 
+              id="paymentChannelType"
+              class="form-select" 
+              formControlName="paymentChannelType"
+              (change)="onFormFieldChange()"
+            >
+              <option value="">Select Channel Type</option>
+              <option *ngFor="let type of paymentChannelTypes" [value]="type">
+                {{ getTypeDisplayName(type) }}
+              </option>
+            </select>
+            <div class="error-message" *ngIf="paymentChannelForm.get('paymentChannelType')?.invalid && paymentChannelForm.get('paymentChannelType')?.touched">
+              {{ getErrorMessage('paymentChannelType') }}
+            </div>
+            <div class="form-help">
+              Select the type of payment channel
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label" for="isActive">
+              <i class="fas fa-toggle-on"></i>
+              Status
+            </label>
+            <select 
+              id="isActive"
+              class="form-select" 
+              formControlName="isActive"
+              (change)="onFormFieldChange()"
+            >
+              <option [value]="true">Active</option>
+              <option [value]="false">Inactive</option>
+            </select>
+            <div class="form-help">
+              Set the initial status of the payment channel
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" routerLink="/payment-channels">
+          <i class="fas fa-times"></i>
+          Cancel
+        </button>
+        <button 
+          type="submit" 
+          class="btn btn-primary" 
+          [disabled]="loading || paymentChannelForm.invalid"
+        >
+          <i class="fas fa-spinner fa-spin" *ngIf="loading"></i>
+          <i class="fas fa-plus" *ngIf="!loading"></i>
+          {{ loading ? 'Creating...' : 'Create Payment Channel' }}
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Success Modal -->
+  <div class="modal-overlay" *ngIf="showSuccessModal" (click)="closeSuccessModal()">
+    <div class="modal-content" (click)="$event.stopPropagation()">
+      <div class="modal-header">
+        <h3 class="modal-title">
+          <i class="fas fa-check-circle"></i>
+          Payment Channel Created Successfully
+        </h3>
+        <button class="close-btn" (click)="closeSuccessModal()">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="success-info">
+          <div class="success-icon">
+            <i class="fas fa-network-wired"></i>
+          </div>
+          <div class="success-details">
+            <h4>{{ createdChannel?.name }}</h4>
+            <div class="channel-code">{{ createdChannel?.code }}</div>
+            <div class="channel-uid">{{ createdChannel?.uid }}</div>
+            <div class="channel-status">
+              <span class="status-badge status-active">
+                <i class="fas fa-circle"></i>
+                {{ createdChannel?.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="success-message">
+          <p>The payment channel has been successfully created and is ready to use.</p>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn btn-secondary" (click)="closeSuccessModal()">
+          <i class="fas fa-times"></i>
+          Close
+        </button>
+        <button class="btn btn-primary" routerLink="/payment-channels" (click)="closeSuccessModal()">
+          <i class="fas fa-list"></i>
+          View All Channels
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

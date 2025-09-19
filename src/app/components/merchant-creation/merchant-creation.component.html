@@ -1,0 +1,351 @@
+<div class="merchant-creation-container">
+  <!-- Header -->
+  <div class="merchant-creation-header">
+    <div class="header-content">
+      <h1 class="page-title">
+        <span class="title-icon">🏪</span>
+        Create New Merchant
+      </h1>
+      <p class="page-subtitle">Add a new merchant to the system</p>
+    </div>
+  </div>
+
+  <!-- Alert Messages -->
+  <div class="alert-container">
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="alert alert-error" role="alert">
+      <div class="alert-content">
+        <i class="fas fa-exclamation-circle alert-icon"></i>
+        <div class="alert-text">
+          <strong>Error!</strong>
+          <p>{{ errorMessage }}</p>
+        </div>
+      </div>
+      <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- Success Message -->
+    <div *ngIf="successMessage" class="alert alert-success" role="alert">
+      <div class="alert-content">
+        <i class="fas fa-check-circle alert-icon"></i>
+        <div class="alert-text">
+          <strong>Success!</strong>
+          <p>{{ successMessage }}</p>
+          <small>Redirecting to merchant management in a few seconds...</small>
+        </div>
+      </div>
+      <button type="button" class="alert-close" (click)="clearMessages()" aria-label="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- Form Card -->
+  <div class="merchant-creation-card">
+    <form [formGroup]="merchantForm" (ngSubmit)="onSubmit()" novalidate>
+      <!-- Basic Information -->
+      <div class="form-section">
+        <h3 class="section-title">
+          <i class="fas fa-info-circle"></i>
+          Basic Information
+        </h3>
+        
+        <div class="form-row">
+          <!-- Merchant Name -->
+          <div class="form-group">
+            <label for="merchantName" class="form-label">Merchant Name *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="merchantName"
+              formControlName="merchantName"
+              [class.is-invalid]="isFieldInvalid('merchantName')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter merchant name">
+            <div *ngIf="isFieldInvalid('merchantName')" class="invalid-feedback">
+              {{ getFieldError('merchantName') }}
+            </div>
+          </div>
+
+          <!-- Merchant Code -->
+          <div class="form-group">
+            <label for="merchantCode" class="form-label">Merchant Code *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="merchantCode"
+              formControlName="merchantCode"
+              [class.is-invalid]="isFieldInvalid('merchantCode')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter unique merchant code">
+            <div *ngIf="isFieldInvalid('merchantCode')" class="invalid-feedback">
+              {{ getFieldError('merchantCode') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <!-- Business Name -->
+          <div class="form-group">
+            <label for="businessName" class="form-label">Business Name *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="businessName"
+              formControlName="businessName"
+              [class.is-invalid]="isFieldInvalid('businessName')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter business name">
+            <div *ngIf="isFieldInvalid('businessName')" class="invalid-feedback">
+              {{ getFieldError('businessName') }}
+            </div>
+          </div>
+
+          <!-- Business Registration Number -->
+          <div class="form-group">
+            <label for="businessRegistrationNumber" class="form-label">Business Registration Number *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="businessRegistrationNumber"
+              formControlName="businessRegistrationNumber"
+              [class.is-invalid]="isFieldInvalid('businessRegistrationNumber')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter business registration number">
+            <div *ngIf="isFieldInvalid('businessRegistrationNumber')" class="invalid-feedback">
+              {{ getFieldError('businessRegistrationNumber') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Business Address -->
+      <div class="form-section">
+        <h3 class="section-title">
+          <i class="fas fa-map-marker-alt"></i>
+          Business Address
+        </h3>
+        
+        <div class="form-group">
+          <label for="businessAddress" class="form-label">Business Address *</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="businessAddress"
+            formControlName="businessAddress"
+            [class.is-invalid]="isFieldInvalid('businessAddress')"
+            (input)="onFormFieldChange()"
+            placeholder="Enter complete business address">
+          <div *ngIf="isFieldInvalid('businessAddress')" class="invalid-feedback">
+            {{ getFieldError('businessAddress') }}
+          </div>
+        </div>
+
+        <div class="form-row">
+          <!-- City -->
+          <div class="form-group">
+            <label for="businessCity" class="form-label">City *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="businessCity"
+              formControlName="businessCity"
+              [class.is-invalid]="isFieldInvalid('businessCity')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter city">
+            <div *ngIf="isFieldInvalid('businessCity')" class="invalid-feedback">
+              {{ getFieldError('businessCity') }}
+            </div>
+          </div>
+
+          <!-- State -->
+          <div class="form-group">
+            <label for="businessState" class="form-label">State/Province *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="businessState"
+              formControlName="businessState"
+              [class.is-invalid]="isFieldInvalid('businessState')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter state or province">
+            <div *ngIf="isFieldInvalid('businessState')" class="invalid-feedback">
+              {{ getFieldError('businessState') }}
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <!-- Postal Code -->
+          <div class="form-group">
+            <label for="businessPostalCode" class="form-label">Postal Code *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="businessPostalCode"
+              formControlName="businessPostalCode"
+              [class.is-invalid]="isFieldInvalid('businessPostalCode')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter postal code">
+            <div *ngIf="isFieldInvalid('businessPostalCode')" class="invalid-feedback">
+              {{ getFieldError('businessPostalCode') }}
+            </div>
+          </div>
+
+          <!-- Country -->
+          <div class="form-group">
+            <label for="businessCountry" class="form-label">Country *</label>
+            <input 
+              type="text" 
+              class="form-control" 
+              id="businessCountry"
+              formControlName="businessCountry"
+              [class.is-invalid]="isFieldInvalid('businessCountry')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter country">
+            <div *ngIf="isFieldInvalid('businessCountry')" class="invalid-feedback">
+              {{ getFieldError('businessCountry') }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Contact Information -->
+      <div class="form-section">
+        <h3 class="section-title">
+          <i class="fas fa-phone"></i>
+          Contact Information
+        </h3>
+        
+        <div class="form-row">
+          <!-- Contact Email -->
+          <div class="form-group">
+            <label for="contactEmail" class="form-label">Contact Email *</label>
+            <input 
+              type="email" 
+              class="form-control" 
+              id="contactEmail"
+              formControlName="contactEmail"
+              [class.is-invalid]="isFieldInvalid('contactEmail')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter contact email">
+            <div *ngIf="isFieldInvalid('contactEmail')" class="invalid-feedback">
+              {{ getFieldError('contactEmail') }}
+            </div>
+          </div>
+
+          <!-- Contact Phone -->
+          <div class="form-group">
+            <label for="contactPhone" class="form-label">Contact Phone *</label>
+            <input 
+              type="tel" 
+              class="form-control" 
+              id="contactPhone"
+              formControlName="contactPhone"
+              [class.is-invalid]="isFieldInvalid('contactPhone')"
+              (input)="onFormFieldChange()"
+              placeholder="Enter contact phone number">
+            <div *ngIf="isFieldInvalid('contactPhone')" class="invalid-feedback">
+              {{ getFieldError('contactPhone') }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Website URL -->
+        <div class="form-group">
+          <label for="websiteUrl" class="form-label">Website URL</label>
+          <input 
+            type="url" 
+            class="form-control" 
+            id="websiteUrl"
+            formControlName="websiteUrl"
+            [class.is-invalid]="isFieldInvalid('websiteUrl')"
+            (input)="onFormFieldChange()"
+            placeholder="https://www.example.com">
+          <div *ngIf="isFieldInvalid('websiteUrl')" class="invalid-feedback">
+            {{ getFieldError('websiteUrl') }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Business Classification -->
+      <div class="form-section">
+        <h3 class="section-title">
+          <i class="fas fa-tags"></i>
+          Business Classification
+        </h3>
+        
+        <div class="form-row">
+          <!-- Merchant Type -->
+          <div class="form-group">
+            <label for="merchantType" class="form-label">Merchant Type *</label>
+            <select 
+              class="form-select" 
+              id="merchantType"
+              formControlName="merchantType"
+              [class.is-invalid]="isFieldInvalid('merchantType')">
+              <option value="">Select merchant type</option>
+              <option *ngFor="let type of merchantTypes" [value]="type">
+                {{ type }}
+              </option>
+            </select>
+            <div *ngIf="isFieldInvalid('merchantType')" class="invalid-feedback">
+              {{ getFieldError('merchantType') }}
+            </div>
+          </div>
+
+          <!-- Merchant Role -->
+          <div class="form-group">
+            <label for="merchantRole" class="form-label">Merchant Role *</label>
+            <select 
+              class="form-select" 
+              id="merchantRole"
+              formControlName="merchantRole"
+              [class.is-invalid]="isFieldInvalid('merchantRole')">
+              <option value="">Select merchant role</option>
+              <option *ngFor="let role of merchantRoles" [value]="role">
+                {{ role }}
+              </option>
+            </select>
+            <div *ngIf="isFieldInvalid('merchantRole')" class="invalid-feedback">
+              {{ getFieldError('merchantRole') }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Parent Merchant ID -->
+        <div class="form-group">
+          <label for="parentMerchantId" class="form-label">Parent Merchant ID</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="parentMerchantId"
+            formControlName="parentMerchantId"
+            placeholder="Enter parent merchant ID (optional)">
+          <small class="form-text">Leave empty if this is a top-level merchant</small>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="goBack()"
+          [disabled]="isLoading">
+          <i class="fas fa-arrow-left"></i>
+          Cancel
+        </button>
+        <button 
+          type="submit" 
+          class="btn btn-primary" 
+          [disabled]="isLoading || merchantForm.invalid">
+          <i class="fas" [class.fa-spinner]="isLoading" [class.fa-plus]="!isLoading" [class.fa-spin]="isLoading"></i>
+          {{ isLoading ? 'Creating...' : 'Create Merchant' }}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
