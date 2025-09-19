@@ -1,10 +1,17 @@
+// Import permission interface for role-permission relationships
+import { Permission } from './permission.model';
+
 export interface Role {
   id: number;
   name: string;
   displayName: string;
   description: string;
+  permissions?: Permission[] | null;
+  permissionCount?: number;
   createdAt?: string;
   updatedAt?: string;
+  createdBy?: string | null;
+  updatedBy?: string;
 }
 
 export interface CreateRoleRequest {
@@ -37,6 +44,34 @@ export interface RolePermissionAssignmentResponse {
     operationTime: string;
     performedBy: string;
     reason: string;
+  };
+}
+
+export interface BulkRolePermissionAssignmentRequest {
+  roleIds: number[];
+  permissionIds: number[];
+  reason?: string;
+}
+
+export interface RoleWithPermissions {
+  id: number;
+  name: string;
+  displayName: string;
+  description: string;
+  permissions: Permission[];
+  permissionCount: number;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: string | null;
+  updatedBy: string;
+}
+
+export interface BulkRolePermissionAssignmentResponse {
+  status: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    [roleId: string]: RoleWithPermissions;
   };
 }
 
@@ -78,6 +113,3 @@ export const PREDEFINED_ROLES = {
 } as const;
 
 export type RoleName = typeof PREDEFINED_ROLES[keyof typeof PREDEFINED_ROLES];
-
-// Import permission interface for role-permission relationships
-import { Permission } from './permission.model';

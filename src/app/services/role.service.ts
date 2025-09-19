@@ -9,7 +9,9 @@ import {
   CreateRoleResponse, 
   ApiResponse,
   RolePermissionAssignmentRequest,
-  RolePermissionAssignmentResponse 
+  RolePermissionAssignmentResponse,
+  BulkRolePermissionAssignmentRequest,
+  BulkRolePermissionAssignmentResponse 
 } from '../models/role.model';
 import { Permission } from '../models/permission.model';
 
@@ -89,11 +91,14 @@ export class RoleService {
   }
 
   /**
-   * Remove permissions from a role
+   * Remove permissions from a role (bulk operation)
    */
-  removePermissionsFromRole(roleId: number, permissionIds: number[]): Observable<ApiResponse<void>> {
-    const request: RolePermissionAssignmentRequest = { permissionIds };
-    return this.http.delete<ApiResponse<void>>(`${this.API_URL}/admin/v1/roles/${roleId}/permissions`, { body: request });
+  removePermissionsFromRole(roleId: number, permissionIds: number[], reason?: string): Observable<RolePermissionAssignmentResponse> {
+    const request: RolePermissionAssignmentRequest = { 
+      permissionIds,
+      ...(reason && { reason })
+    };
+    return this.http.delete<RolePermissionAssignmentResponse>(`${this.API_URL}/admin/v1/roles/${roleId}/permissions`, { body: request });
   }
 
   /**
@@ -108,5 +113,24 @@ export class RoleService {
    */
   getRolesByPermission(permissionId: number): Observable<ApiResponse<Role[]>> {
     return this.http.get<ApiResponse<Role[]>>(`${this.API_URL}/admin/v1/permissions/${permissionId}/roles`);
+  }
+
+  /**
+   * Bulk assign permissions to multiple roles
+   */
+  bulkAssignPermissionsToRoles(roleIds: number[], permissionIds: number[], reason?: string): Observable<BulkRolePermissionAssignmentResponse> {
+    const request: BulkRolePermissionAssignmentRequest = {
+      roleIds,
+      permissionIds,
+      ...(reason && { reason })
+    };
+    return this.http.post<BulkRolePermissionAssignmentResponse>(`${this.API_URL}/admin/v1/roles/bulk-assign-permissions`, request);
+  }
+
+  /**
+   * Check if a role has a specific permission
+   */
+  roleHasPermission(roleId: number, permissionId: number): Observable<ApiResponse<boolean>> {
+    return this.http.get<ApiResponse<boolean>>(`${this.API_URL}/admin/v1/roles/${roleId}/permissions/${permissionId}/exists`);
   }
 }

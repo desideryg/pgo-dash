@@ -2,6 +2,8 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
+import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { PermissionService } from '../../services/permission.service';
 import { RoleService } from '../../services/role.service';
 import { 
@@ -50,6 +52,29 @@ export class PermissionManagementComponent implements OnInit {
   selectedPermissionsForAssignment: number[] = [];
   assignmentReason = '';
   loadingAssignment = false;
+  
+  // Permission removal functionality
+  showRemovePermissionsForm = false;
+  selectedPermissionsForRemoval: number[] = [];
+  removalReason = '';
+  loadingRemoval = false;
+  
+  // Bulk role-permission assignment functionality
+  showBulkAssignmentForm = false;
+  selectedRolesForBulkAssignment: number[] = [];
+  selectedPermissionsForBulkAssignment: number[] = [];
+  bulkAssignmentReason = '';
+  loadingBulkAssignment = false;
+  showOnlyAssignablePermissions = true;
+  
+  // Permission validation cache
+  rolePermissionCache = new Map<string, boolean>();
+  
+  // Permission-to-roles functionality
+  showPermissionRolesModal = false;
+  selectedPermissionForRoles: Permission | null = null;
+  permissionRoles: Role[] = [];
+  loadingPermissionRoles = false;
 
   // Filter options
   selectedResource = '';
@@ -522,29 +547,6 @@ export class PermissionManagementComponent implements OnInit {
     this.loadingRolePermissions = false;
   }
 
-  removePermissionFromRole(roleId: number, permissionId: number): void {
-    if (confirm('Are you sure you want to remove this permission from the role?')) {
-      this.loadingRolePermissions = true;
-      this.error = '';
-
-      this.roleService.removePermissionFromRole(roleId, permissionId).subscribe({
-        next: (response) => {
-          if (response.status) {
-            this.success = 'Permission removed from role successfully!';
-            this.loadRolePermissions(roleId);
-          } else {
-            this.error = response.message || 'Failed to remove permission from role';
-          }
-          this.loadingRolePermissions = false;
-        },
-        error: (error) => {
-          console.error('Error removing permission from role:', error);
-          this.error = 'Failed to remove permission from role. Please try again.';
-          this.loadingRolePermissions = false;
-        }
-      });
-    }
-  }
 
   getPermissionsByRole(roleId: number): Permission[] {
     return this.permissions.filter(permission => 
@@ -554,7 +556,8 @@ export class PermissionManagementComponent implements OnInit {
 
   showAssignPermissionsModal(): void {
     this.showAssignPermissionsForm = true;
-    this.loadAvailablePermissionsForAssignment();
+    // Use the enhanced validation method for more accurate results
+    this.loadAvailablePermissionsForAssignmentWithValidation();
     this.selectedPermissionsForAssignment = [];
     this.assignmentReason = '';
   }
@@ -627,5 +630,376 @@ export class PermissionManagementComponent implements OnInit {
 
   deselectAllPermissions(): void {
     this.selectedPermissionsForAssignment = [];
+  }
+
+  // Permission removal methods
+  showRemovePermissionsModal(): void {
+    this.showRemovePermissionsForm = true;
+    this.selectedPermissionsForRemoval = [];
+    this.removalReason = '';
+  }
+
+  hideRemovePermissionsModal(): void {
+    this.showRemovePermissionsForm = false;
+    this.selectedPermissionsForRemoval = [];
+    this.removalReason = '';
+  }
+
+  togglePermissionRemovalSelection(permissionId: number): void {
+    const index = this.selectedPermissionsForRemoval.indexOf(permissionId);
+    if (index > -1) {
+      this.selectedPermissionsForRemoval.splice(index, 1);
+    } else {
+      this.selectedPermissionsForRemoval.push(permissionId);
+    }
+  }
+
+  isPermissionSelectedForRemoval(permissionId: number): boolean {
+    return this.selectedPermissionsForRemoval.includes(permissionId);
+  }
+
+  removePermissionsFromRole(): void {
+    if (this.selectedRole && this.selectedPermissionsForRemoval.length > 0) {
+      this.loadingRemoval = true;
+      this.error = '';
+
+      this.roleService.removePermissionsFromRole(
+        this.selectedRole.id, 
+        this.selectedPermissionsForRemoval,
+        this.removalReason || undefined
+      ).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const revokedCount = response.data.revokedPermissions?.length || 0;
+            const totalCount = response.data.totalPermissions;
+            
+            this.success = `Successfully revoked ${revokedCount} permission(s) from role. Remaining permissions: ${totalCount}`;
+            
+            // Refresh role permissions
+            this.loadRolePermissions(this.selectedRole!.id);
+            this.hideRemovePermissionsModal();
+          } else {
+            this.error = response.message || 'Failed to revoke permissions from role';
+          }
+          this.loadingRemoval = false;
+        },
+        error: (error) => {
+          console.error('Error revoking permissions from role:', error);
+          this.error = 'Failed to revoke permissions from role. Please try again.';
+          this.loadingRemoval = false;
+        }
+      });
+    }
+  }
+
+  selectAllCurrentPermissions(): void {
+    this.selectedPermissionsForRemoval = this.rolePermissions.map(p => p.id);
+  }
+
+  deselectAllRemovalPermissions(): void {
+    this.selectedPermissionsForRemoval = [];
+  }
+
+  // Update the existing single permission removal to use the new bulk method
+  removePermissionFromRole(roleId: number, permissionId: number): void {
+    if (confirm('Are you sure you want to remove this permission from the role?')) {
+      this.loadingRolePermissions = true;
+      this.error = '';
+
+      this.roleService.removePermissionsFromRole(roleId, [permissionId]).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const revokedCount = response.data.revokedPermissions?.length || 0;
+            const totalCount = response.data.totalPermissions;
+            this.success = `Successfully revoked ${revokedCount} permission(s) from role. Remaining permissions: ${totalCount}`;
+            this.loadRolePermissions(roleId);
+          } else {
+            this.error = response.message || 'Failed to remove permission from role';
+          }
+          this.loadingRolePermissions = false;
+        },
+        error: (error) => {
+          console.error('Error removing permission from role:', error);
+          this.error = 'Failed to remove permission from role. Please try again.';
+          this.loadingRolePermissions = false;
+        }
+      });
+    }
+  }
+
+  // Bulk role-permission assignment methods
+  showBulkAssignmentModal(): void {
+    this.showBulkAssignmentForm = true;
+    this.selectedRolesForBulkAssignment = [];
+    this.selectedPermissionsForBulkAssignment = [];
+    this.bulkAssignmentReason = '';
+  }
+
+  hideBulkAssignmentModal(): void {
+    this.showBulkAssignmentForm = false;
+    this.selectedRolesForBulkAssignment = [];
+    this.selectedPermissionsForBulkAssignment = [];
+    this.bulkAssignmentReason = '';
+  }
+
+  toggleRoleSelectionForBulkAssignment(roleId: number): void {
+    const index = this.selectedRolesForBulkAssignment.indexOf(roleId);
+    if (index > -1) {
+      this.selectedRolesForBulkAssignment.splice(index, 1);
+    } else {
+      this.selectedRolesForBulkAssignment.push(roleId);
+      // Preload permission checks for this role
+      this.preloadRolePermissionChecks(roleId, this.permissions.map(p => p.id));
+    }
+  }
+
+  isRoleSelectedForBulkAssignment(roleId: number): boolean {
+    return this.selectedRolesForBulkAssignment.includes(roleId);
+  }
+
+  togglePermissionSelectionForBulkAssignment(permissionId: number): void {
+    const index = this.selectedPermissionsForBulkAssignment.indexOf(permissionId);
+    if (index > -1) {
+      this.selectedPermissionsForBulkAssignment.splice(index, 1);
+    } else {
+      this.selectedPermissionsForBulkAssignment.push(permissionId);
+    }
+  }
+
+  isPermissionSelectedForBulkAssignment(permissionId: number): boolean {
+    return this.selectedPermissionsForBulkAssignment.includes(permissionId);
+  }
+
+  bulkAssignPermissionsToRoles(): void {
+    if (this.selectedRolesForBulkAssignment.length > 0 && this.selectedPermissionsForBulkAssignment.length > 0) {
+      this.loadingBulkAssignment = true;
+      this.error = '';
+
+      this.roleService.bulkAssignPermissionsToRoles(
+        this.selectedRolesForBulkAssignment,
+        this.selectedPermissionsForBulkAssignment,
+        this.bulkAssignmentReason || undefined
+      ).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const roleCount = this.selectedRolesForBulkAssignment.length;
+            const permissionCount = this.selectedPermissionsForBulkAssignment.length;
+            const affectedRoles = Object.values(response.data);
+            
+            this.success = `Successfully assigned ${permissionCount} permission(s) to ${roleCount} role(s). Total assignments processed: ${affectedRoles.length}`;
+            
+            // Refresh the roles data if we're showing role permissions
+            if (this.showRolePermissions) {
+              this.loadRoles();
+            }
+            
+            this.hideBulkAssignmentModal();
+          } else {
+            this.error = response.message || 'Failed to bulk assign permissions to roles';
+          }
+          this.loadingBulkAssignment = false;
+        },
+        error: (error) => {
+          console.error('Error bulk assigning permissions to roles:', error);
+          this.error = 'Failed to bulk assign permissions to roles. Please try again.';
+          this.loadingBulkAssignment = false;
+        }
+      });
+    }
+  }
+
+  selectAllRolesForBulkAssignment(): void {
+    this.selectedRolesForBulkAssignment = this.roles.map(r => r.id);
+  }
+
+  deselectAllRolesForBulkAssignment(): void {
+    this.selectedRolesForBulkAssignment = [];
+  }
+
+  selectAllPermissionsForBulkAssignment(): void {
+    this.selectedPermissionsForBulkAssignment = this.permissions.map(p => p.id);
+  }
+
+  deselectAllPermissionsForBulkAssignment(): void {
+    this.selectedPermissionsForBulkAssignment = [];
+  }
+
+  // Permission validation utility methods
+  checkRoleHasPermission(roleId: number, permissionId: number): Observable<boolean> {
+    const cacheKey = `${roleId}-${permissionId}`;
+    
+    // Check cache first
+    if (this.rolePermissionCache.has(cacheKey)) {
+      return new Observable(observer => {
+        observer.next(this.rolePermissionCache.get(cacheKey)!);
+        observer.complete();
+      });
+    }
+
+    // Make API call and cache result
+    return this.roleService.roleHasPermission(roleId, permissionId).pipe(
+      map(response => {
+        const hasPermission = response.status && response.data;
+        this.rolePermissionCache.set(cacheKey, hasPermission);
+        return hasPermission;
+      })
+    );
+  }
+
+  clearPermissionCache(): void {
+    this.rolePermissionCache.clear();
+  }
+
+  roleHasPermissionSync(roleId: number, permissionId: number): boolean | null {
+    const cacheKey = `${roleId}-${permissionId}`;
+    return this.rolePermissionCache.get(cacheKey) ?? null;
+  }
+
+  preloadRolePermissionChecks(roleId: number, permissionIds: number[]): void {
+    permissionIds.forEach(permissionId => {
+      this.checkRoleHasPermission(roleId, permissionId).subscribe();
+    });
+  }
+
+  getPermissionsNotInRole(roleId: number): Permission[] {
+    return this.permissions.filter(permission => {
+      const hasPermission = this.roleHasPermissionSync(roleId, permission.id);
+      return hasPermission === false;
+    });
+  }
+
+  getPermissionsInRole(roleId: number): Permission[] {
+    return this.permissions.filter(permission => {
+      const hasPermission = this.roleHasPermissionSync(roleId, permission.id);
+      return hasPermission === true;
+    });
+  }
+
+  // Enhanced method to load available permissions with validation
+  loadAvailablePermissionsForAssignmentWithValidation(): void {
+    if (!this.selectedRole) return;
+    
+    // Clear cache for this role
+    this.permissions.forEach(permission => {
+      const cacheKey = `${this.selectedRole!.id}-${permission.id}`;
+      this.rolePermissionCache.delete(cacheKey);
+    });
+
+    // Load permissions and check which ones are already assigned
+    this.availablePermissionsForAssignment = [];
+    let checksCompleted = 0;
+    const totalChecks = this.permissions.length;
+
+    this.permissions.forEach(permission => {
+      this.checkRoleHasPermission(this.selectedRole!.id, permission.id).subscribe(hasPermission => {
+        if (!hasPermission) {
+          this.availablePermissionsForAssignment.push(permission);
+        }
+        checksCompleted++;
+        
+        // Sort when all checks are complete
+        if (checksCompleted === totalChecks) {
+          this.availablePermissionsForAssignment.sort((a, b) => a.name.localeCompare(b.name));
+        }
+      });
+    });
+  }
+
+  // Smart filtering for bulk assignment
+  getFilteredPermissionsForBulkAssignment(): Permission[] {
+    if (!this.showOnlyAssignablePermissions || this.selectedRolesForBulkAssignment.length === 0) {
+      return this.permissions;
+    }
+
+    // Show only permissions that can be assigned to at least one selected role
+    return this.permissions.filter(permission => {
+      return this.selectedRolesForBulkAssignment.some(roleId => {
+        const hasPermission = this.roleHasPermissionSync(roleId, permission.id);
+        return hasPermission === false; // Can be assigned if role doesn't have it
+      });
+    });
+  }
+
+  toggleSmartFiltering(): void {
+    this.showOnlyAssignablePermissions = !this.showOnlyAssignablePermissions;
+  }
+
+  getAssignableRoleCount(permissionId: number): number {
+    if (this.selectedRolesForBulkAssignment.length === 0) return 0;
+    
+    return this.selectedRolesForBulkAssignment.filter(roleId => {
+      const hasPermission = this.roleHasPermissionSync(roleId, permissionId);
+      return hasPermission === false;
+    }).length;
+  }
+
+  // Permission-to-roles methods
+  showPermissionRoles(permission: Permission): void {
+    this.selectedPermissionForRoles = permission;
+    this.showPermissionRolesModal = true;
+    this.loadPermissionRoles(permission.id);
+  }
+
+  hidePermissionRolesModal(): void {
+    this.showPermissionRolesModal = false;
+    this.selectedPermissionForRoles = null;
+    this.permissionRoles = [];
+    this.loadingPermissionRoles = false;
+  }
+
+  loadPermissionRoles(permissionId: number): void {
+    this.loadingPermissionRoles = true;
+    this.permissionRoles = [];
+    this.error = '';
+
+    this.roleService.getRolesByPermission(permissionId).subscribe({
+      next: (response) => {
+        if (response.status) {
+          this.permissionRoles = response.data;
+        } else {
+          this.error = response.message || 'Failed to load roles for permission';
+        }
+        this.loadingPermissionRoles = false;
+      },
+      error: (error) => {
+        console.error('Error loading roles for permission:', error);
+        this.error = 'Failed to load roles for permission. Please try again.';
+        this.loadingPermissionRoles = false;
+      }
+    });
+  }
+
+  removeRoleFromPermission(roleId: number, permissionId: number): void {
+    if (confirm('Are you sure you want to remove this permission from the role?')) {
+      this.loadingPermissionRoles = true;
+      this.error = '';
+
+      this.roleService.removePermissionsFromRole(roleId, [permissionId]).subscribe({
+        next: (response) => {
+          if (response.status) {
+            const revokedCount = response.data.revokedPermissions?.length || 0;
+            this.success = `Successfully removed permission from role. Revoked ${revokedCount} permission(s).`;
+            this.loadPermissionRoles(permissionId);
+            
+            // Clear cache for this role-permission pair
+            const cacheKey = `${roleId}-${permissionId}`;
+            this.rolePermissionCache.delete(cacheKey);
+          } else {
+            this.error = response.message || 'Failed to remove permission from role';
+          }
+          this.loadingPermissionRoles = false;
+        },
+        error: (error) => {
+          console.error('Error removing permission from role:', error);
+          this.error = 'Failed to remove permission from role. Please try again.';
+          this.loadingPermissionRoles = false;
+        }
+      });
+    }
+  }
+
+  getPermissionRoleCount(permissionId: number): number {
+    // This could be enhanced to use cached data or API call
+    return this.permissionRoles.length;
   }
 }

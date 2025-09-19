@@ -311,6 +311,9 @@
     <button class="btn btn-secondary" (click)="toggleRolePermissions()">
       {{ showRolePermissions ? 'Hide' : 'Show' }} Role Permissions
     </button>
+    <button class="btn btn-primary" (click)="showBulkAssignmentModal()">
+      🔄 Bulk Assign
+    </button>
   </div>
   
   <!-- Advanced Filters -->
@@ -455,6 +458,12 @@
             (click)="showAssignPermissionsModal()"
             [disabled]="loadingRolePermissions">
             ➕ Assign Permissions
+          </button>
+          <button 
+            class="btn btn-warning"
+            (click)="showRemovePermissionsModal()"
+            [disabled]="loadingRolePermissions || rolePermissions.length === 0">
+            ➖ Remove Permissions
           </button>
         </div>
       </div>
@@ -670,6 +679,451 @@
   </div>
 </div>
 
+<!-- Remove Permissions Modal -->
+<div class="modal-overlay" *ngIf="showRemovePermissionsForm" (click)="hideRemovePermissionsModal()">
+  <div class="modal-content modal-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Remove Permissions from {{ selectedRole?.displayName || selectedRole?.name }}</h2>
+      <button class="close-btn" (click)="hideRemovePermissionsModal()">×</button>
+    </div>
+    
+    <div class="remove-permissions-content">
+      <!-- Removal Info -->
+      <div class="removal-info">
+        <div class="info-item">
+          <label>Role:</label>
+          <span class="role-name">{{ selectedRole?.displayName || selectedRole?.name }}</span>
+        </div>
+        <div class="info-item">
+          <label>Current Permissions:</label>
+          <span class="permission-count">{{ rolePermissions.length }}</span>
+        </div>
+        <div class="info-item">
+          <label>Selected for Removal:</label>
+          <span class="permission-count danger">{{ selectedPermissionsForRemoval.length }}</span>
+        </div>
+      </div>
+
+      <!-- Warning Banner -->
+      <div class="warning-banner">
+        <div class="warning-icon">⚠️</div>
+        <div class="warning-content">
+          <h4>Permission Removal Warning</h4>
+          <p>Removing permissions will immediately revoke access for users with this role. This action will be logged for audit purposes.</p>
+        </div>
+      </div>
+
+      <!-- Reason Input -->
+      <div class="form-group">
+        <label for="removalReason">Reason for Removal (Optional)</label>
+        <textarea
+          id="removalReason"
+          [(ngModel)]="removalReason"
+          class="form-control"
+          rows="2"
+          placeholder="e.g., Removing delete permission for security compliance"
+          [disabled]="loadingRemoval"></textarea>
+        <small class="form-text">Provide a reason for this permission removal for audit purposes</small>
+      </div>
+
+      <!-- Selection Controls -->
+      <div class="selection-controls">
+        <div class="selection-info">
+          <span>{{ selectedPermissionsForRemoval.length }} of {{ rolePermissions.length }} permissions selected for removal</span>
+        </div>
+        <div class="selection-actions">
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="selectAllCurrentPermissions()"
+            [disabled]="loadingRemoval || rolePermissions.length === 0">
+            Select All
+          </button>
+          <button 
+            type="button" 
+            class="btn btn-outline btn-small"
+            (click)="deselectAllRemovalPermissions()"
+            [disabled]="loadingRemoval || selectedPermissionsForRemoval.length === 0">
+            Deselect All
+          </button>
+        </div>
+      </div>
+
+      <!-- Current Permissions List -->
+      <div class="current-permissions-list" *ngIf="rolePermissions.length > 0">
+        <div class="permissions-grid">
+          <div 
+            *ngFor="let permission of rolePermissions" 
+            class="permission-checkbox-card removal-card"
+            [class.selected]="isPermissionSelectedForRemoval(permission.id)"
+            (click)="togglePermissionRemovalSelection(permission.id)">
+            
+            <div class="checkbox-container">
+              <input 
+                type="checkbox"
+                [checked]="isPermissionSelectedForRemoval(permission.id)"
+                (click)="$event.stopPropagation()"
+                (change)="togglePermissionRemovalSelection(permission.id)"
+                [disabled]="loadingRemoval">
+            </div>
+            
+            <div class="permission-info">
+              <div class="permission-header">
+                <strong>{{ permission.name }}</strong>
+                <div class="permission-badges">
+                  <span class="badge" [ngClass]="getActionClass(permission.action)">
+                    {{ permission.action }}
+                  </span>
+                  <span class="badge resource-badge">
+                    {{ permission.resource }}
+                  </span>
+                  <span class="badge" [ngClass]="getScopeTypeClass(permission.scopeType)">
+                    {{ permission.scopeType }}
+                  </span>
+                </div>
+              </div>
+              
+              <div class="permission-details">
+                <p class="description">{{ permission.description }}</p>
+                <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                <small *ngIf="permission.scopeId" class="scope-id">Scope: {{ permission.scopeId }}</small>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- No Permissions Message -->
+      <div class="no-data" *ngIf="rolePermissions.length === 0">
+        <div class="no-data-icon">🔐</div>
+        <h3>No permissions to remove</h3>
+        <p>This role currently has no permissions assigned to it.</p>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="hideRemovePermissionsModal()"
+          [disabled]="loadingRemoval">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-danger" 
+          (click)="removePermissionsFromRole()"
+          [disabled]="loadingRemoval || selectedPermissionsForRemoval.length === 0">
+          <span *ngIf="loadingRemoval" class="spinner"></span>
+          {{ loadingRemoval ? 'Removing...' : 'Remove ' + selectedPermissionsForRemoval.length + ' Permission(s)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Assignment Modal -->
+<div class="modal-overlay" *ngIf="showBulkAssignmentForm" (click)="hideBulkAssignmentModal()">
+  <div class="modal-content modal-extra-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Bulk Assign Permissions to Multiple Roles</h2>
+      <button class="close-btn" (click)="hideBulkAssignmentModal()">×</button>
+    </div>
+    
+    <div class="bulk-assignment-content">
+      <!-- Assignment Summary -->
+      <div class="assignment-summary">
+        <div class="summary-item">
+          <label>Selected Roles:</label>
+          <span class="count-badge roles">{{ selectedRolesForBulkAssignment.length }}</span>
+        </div>
+        <div class="summary-item">
+          <label>Selected Permissions:</label>
+          <span class="count-badge permissions">{{ selectedPermissionsForBulkAssignment.length }}</span>
+        </div>
+        <div class="summary-item">
+          <label>Total Operations:</label>
+          <span class="count-badge total">{{ selectedRolesForBulkAssignment.length * selectedPermissionsForBulkAssignment.length }}</span>
+        </div>
+      </div>
+
+      <!-- Info Banner -->
+      <div class="info-banner">
+        <div class="info-icon">ℹ️</div>
+        <div class="info-content">
+          <h4>Bulk Assignment</h4>
+          <p>This will assign the selected permissions to all selected roles. Existing permissions will be preserved.</p>
+        </div>
+      </div>
+
+      <!-- Reason Input -->
+      <div class="form-group">
+        <label for="bulkAssignmentReason">Reason for Bulk Assignment (Optional)</label>
+        <textarea
+          id="bulkAssignmentReason"
+          [(ngModel)]="bulkAssignmentReason"
+          class="form-control"
+          rows="2"
+          placeholder="e.g., Initial setup for new user roles"
+          [disabled]="loadingBulkAssignment"></textarea>
+        <small class="form-text">Provide a reason for this bulk assignment for audit purposes</small>
+      </div>
+
+      <!-- Selection Grid -->
+      <div class="bulk-selection-grid">
+        <!-- Roles Selection -->
+        <div class="selection-section">
+          <div class="section-header">
+            <h3>Select Roles ({{ selectedRolesForBulkAssignment.length }}/{{ roles.length }})</h3>
+            <div class="selection-controls">
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="selectAllRolesForBulkAssignment()"
+                [disabled]="loadingBulkAssignment">
+                Select All
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="deselectAllRolesForBulkAssignment()"
+                [disabled]="loadingBulkAssignment">
+                Deselect All
+              </button>
+            </div>
+          </div>
+          
+          <div class="items-grid roles-grid">
+            <div 
+              *ngFor="let role of roles" 
+              class="selection-card role-card"
+              [class.selected]="isRoleSelectedForBulkAssignment(role.id)"
+              (click)="toggleRoleSelectionForBulkAssignment(role.id)">
+              
+              <div class="checkbox-container">
+                <input 
+                  type="checkbox"
+                  [checked]="isRoleSelectedForBulkAssignment(role.id)"
+                  (click)="$event.stopPropagation()"
+                  (change)="toggleRoleSelectionForBulkAssignment(role.id)"
+                  [disabled]="loadingBulkAssignment">
+              </div>
+              
+              <div class="item-info">
+                <div class="item-header">
+                  <strong>{{ role.displayName || role.name }}</strong>
+                  <small class="item-code">{{ role.name }}</small>
+                </div>
+                <div class="item-description">
+                  <p>{{ role.description || 'No description available' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Permissions Selection -->
+        <div class="selection-section">
+          <div class="section-header">
+            <h3>Select Permissions ({{ selectedPermissionsForBulkAssignment.length }}/{{ getFilteredPermissionsForBulkAssignment().length }})</h3>
+            <div class="selection-controls">
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="toggleSmartFiltering()"
+                [disabled]="loadingBulkAssignment">
+                {{ showOnlyAssignablePermissions ? '📋' : '🔍' }} {{ showOnlyAssignablePermissions ? 'Show All' : 'Smart Filter' }}
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="selectAllPermissionsForBulkAssignment()"
+                [disabled]="loadingBulkAssignment">
+                Select All
+              </button>
+              <button 
+                type="button" 
+                class="btn btn-outline btn-small"
+                (click)="deselectAllPermissionsForBulkAssignment()"
+                [disabled]="loadingBulkAssignment">
+                Deselect All
+              </button>
+            </div>
+          </div>
+          
+          <div class="items-grid permissions-grid">
+            <div 
+              *ngFor="let permission of getFilteredPermissionsForBulkAssignment()" 
+              class="selection-card permission-card"
+              [class.selected]="isPermissionSelectedForBulkAssignment(permission.id)"
+              (click)="togglePermissionSelectionForBulkAssignment(permission.id)">
+              
+              <div class="checkbox-container">
+                <input 
+                  type="checkbox"
+                  [checked]="isPermissionSelectedForBulkAssignment(permission.id)"
+                  (click)="$event.stopPropagation()"
+                  (change)="togglePermissionSelectionForBulkAssignment(permission.id)"
+                  [disabled]="loadingBulkAssignment">
+              </div>
+              
+              <div class="item-info">
+                <div class="item-header">
+                  <strong>{{ permission.name }}</strong>
+                  <div class="permission-badges">
+                    <span class="badge" [ngClass]="getActionClass(permission.action)">
+                      {{ permission.action }}
+                    </span>
+                    <span class="badge resource-badge">
+                      {{ permission.resource }}
+                    </span>
+                  </div>
+                </div>
+                <div class="item-description">
+                  <p>{{ permission.description }}</p>
+                  <small class="spring-permission">{{ permission.springSecurityPermission }}</small>
+                </div>
+                <div class="role-assignment-status" *ngIf="selectedRolesForBulkAssignment.length > 0">
+                  <small class="assignment-info" [class.partial-assignment]="getAssignableRoleCount(permission.id) < selectedRolesForBulkAssignment.length">
+                    <span *ngIf="getAssignableRoleCount(permission.id) === selectedRolesForBulkAssignment.length">
+                      ✅ Can assign to all {{ selectedRolesForBulkAssignment.length }} role(s)
+                    </span>
+                    <span *ngIf="getAssignableRoleCount(permission.id) > 0 && getAssignableRoleCount(permission.id) < selectedRolesForBulkAssignment.length">
+                      ⚠️ Can assign to {{ getAssignableRoleCount(permission.id) }}/{{ selectedRolesForBulkAssignment.length }} role(s)
+                    </span>
+                    <span *ngIf="getAssignableRoleCount(permission.id) === 0">
+                      ❌ Already assigned to all selected roles
+                    </span>
+                  </small>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Form Actions -->
+      <div class="form-actions">
+        <button 
+          type="button" 
+          class="btn btn-secondary" 
+          (click)="hideBulkAssignmentModal()"
+          [disabled]="loadingBulkAssignment">
+          Cancel
+        </button>
+        <button 
+          type="button" 
+          class="btn btn-primary" 
+          (click)="bulkAssignPermissionsToRoles()"
+          [disabled]="loadingBulkAssignment || selectedRolesForBulkAssignment.length === 0 || selectedPermissionsForBulkAssignment.length === 0">
+          <span *ngIf="loadingBulkAssignment" class="spinner"></span>
+          {{ loadingBulkAssignment ? 'Processing...' : 'Assign to ' + selectedRolesForBulkAssignment.length + ' Role(s)' }}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Permission Roles Modal -->
+<div class="modal-overlay" *ngIf="showPermissionRolesModal" (click)="hidePermissionRolesModal()">
+  <div class="modal-content modal-extra-large" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Roles with Permission: {{ selectedPermissionForRoles?.name }}</h2>
+      <button class="close-btn" (click)="hidePermissionRolesModal()">×</button>
+    </div>
+    
+    <div class="permission-roles-content">
+      <div class="permission-info-banner" *ngIf="selectedPermissionForRoles">
+        <div class="permission-details">
+          <h4>{{ selectedPermissionForRoles.name }}</h4>
+          <p>{{ selectedPermissionForRoles.description }}</p>
+          <div class="permission-meta">
+            <span class="badge" [ngClass]="getActionClass(selectedPermissionForRoles.action)">
+              {{ selectedPermissionForRoles.action }}
+            </span>
+            <span class="badge resource-badge">
+              {{ selectedPermissionForRoles.resource }}
+            </span>
+            <span class="badge" [ngClass]="getScopeTypeClass(selectedPermissionForRoles.scopeType)">
+              {{ selectedPermissionForRoles.scopeType }}
+            </span>
+          </div>
+          <small class="spring-permission">{{ selectedPermissionForRoles.springSecurityPermission }}</small>
+        </div>
+        <div class="permission-stats">
+          <span class="role-count">{{ permissionRoles.length }} role(s) assigned</span>
+        </div>
+      </div>
+      
+      <!-- Loading State -->
+      <div class="loading-container" *ngIf="loadingPermissionRoles">
+        <div class="spinner-large"></div>
+        <p>Loading roles with this permission...</p>
+      </div>
+      
+      <!-- Roles Table -->
+      <div class="table-container" *ngIf="!loadingPermissionRoles && permissionRoles.length > 0">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Role Name</th>
+              <th>Display Name</th>
+              <th>Description</th>
+              <th>Permission Count</th>
+              <th>Updated</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let role of permissionRoles">
+              <td>
+                <div class="role-name">
+                  <strong>{{ role.name }}</strong>
+                </div>
+              </td>
+              <td>{{ role.displayName || role.name }}</td>
+              <td class="description-cell" [title]="role.description">
+                {{ role.description || 'No description available' }}
+              </td>
+              <td>
+                <span class="permission-count-badge">{{ role.permissionCount || 0 }}</span>
+              </td>
+              <td>
+                <small class="timestamp">{{ role.updatedAt | date:'short' }}</small>
+                <br>
+                <small class="updated-by" *ngIf="role.updatedBy">by {{ role.updatedBy }}</small>
+              </td>
+              <td class="actions-cell">
+                <div class="action-buttons">
+                  <button 
+                    class="btn btn-sm btn-danger"
+                    (click)="removeRoleFromPermission(role.id, selectedPermissionForRoles!.id)"
+                    [disabled]="loadingPermissionRoles"
+                    title="Remove permission from this role">
+                    🗑️ Remove
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- No Roles Message -->
+      <div class="no-data" *ngIf="!loadingPermissionRoles && permissionRoles.length === 0">
+        <div class="no-data-icon">👥</div>
+        <h3>No roles assigned</h3>
+        <p>This permission is not currently assigned to any roles.</p>
+        <button 
+          class="btn btn-primary"
+          (click)="hidePermissionRolesModal(); showBulkAssignmentModal()">
+          Assign to Roles
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Loading State -->
 <div class="loading-container" *ngIf="loading && permissions.length === 0">
   <div class="spinner-large"></div>
@@ -729,6 +1183,13 @@
               [disabled]="loading"
               title="Edit description">
               ✏️
+            </button>
+            <button 
+              class="btn btn-sm btn-info"
+              (click)="showPermissionRoles(permission)"
+              [disabled]="loading"
+              title="View roles with this permission">
+              👥
             </button>
           </div>
         </td>
