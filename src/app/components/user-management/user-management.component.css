@@ -1,14 +1,12 @@
 /* User Management Container */
 .user-management-container {
-  min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 2rem;
+  padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .user-management-content {
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
 }
 
 /* Page Header */
@@ -263,12 +261,33 @@
 /* Table Styling */
 .table-wrapper {
   overflow-x: auto;
+  margin: 0;
+}
+
+.table-wrapper::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
 .users-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.9rem;
+  table-layout: fixed;
+  min-width: 800px;
 }
 
 .users-table th {
@@ -281,12 +300,23 @@
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  white-space: nowrap;
 }
+
+/* Column width distribution */
+.users-table th:nth-child(1) { width: 20%; } /* User */
+.users-table th:nth-child(2) { width: 22%; } /* Email */
+.users-table th:nth-child(3) { width: 18%; } /* Roles */
+.users-table th:nth-child(4) { width: 15%; } /* Status */
+.users-table th:nth-child(5) { width: 13%; } /* Last Login */
+.users-table th:nth-child(6) { width: 12%; } /* Actions */
 
 .users-table td {
   padding: 1rem 0.75rem;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .user-row:hover {
@@ -493,12 +523,15 @@
 
 /* Actions Cell */
 .actions-cell {
-  min-width: 120px;
+  min-width: 140px;
 }
 
 .action-buttons {
   display: flex;
-  gap: 0.5rem;
+  gap: 4px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .btn-action {
@@ -610,6 +643,10 @@
 
 /* Responsive Design */
 @media (max-width: 1200px) {
+  .user-management-container {
+    padding: 18px;
+  }
+  
   .user-management-content {
     max-width: 100%;
   }
@@ -623,11 +660,21 @@
   .search-box {
     max-width: none;
   }
+  
+  .users-table {
+    min-width: 900px;
+  }
+}
+
+@media (max-width: 992px) {
+  .user-management-container {
+    padding: 16px;
+  }
 }
 
 @media (max-width: 768px) {
   .user-management-container {
-    padding: 1rem;
+    padding: 15px;
   }
   
   .page-header,
@@ -649,6 +696,7 @@
   
   .users-table {
     font-size: 0.8rem;
+    min-width: 700px;
   }
   
   .users-table th,
@@ -659,6 +707,14 @@
   .user-info-cell {
     min-width: 150px;
   }
+  
+  /* Adjust column widths for mobile */
+  .users-table th:nth-child(1) { width: 18%; } /* User */
+  .users-table th:nth-child(2) { width: 20%; } /* Email */
+  .users-table th:nth-child(3) { width: 16%; } /* Roles */
+  .users-table th:nth-child(4) { width: 14%; } /* Status */
+  .users-table th:nth-child(5) { width: 12%; } /* Last Login */
+  .users-table th:nth-child(6) { width: 20%; } /* Actions */
   
   .pagination-section {
     flex-direction: column;
@@ -689,8 +745,7 @@
   }
   
   .action-buttons {
-    flex-direction: column;
-    gap: 0.25rem;
+    gap: 2px;
   }
   
   .btn-action {

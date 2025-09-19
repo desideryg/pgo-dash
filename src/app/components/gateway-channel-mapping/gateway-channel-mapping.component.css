@@ -1,7 +1,8 @@
 .gateway-channel-mapping {
   padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
+  width: 100%;
 }
 
 .header {
@@ -303,11 +304,32 @@
 
 .table-responsive {
   overflow-x: auto;
+  margin: 0;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
 }
 
 .mappings-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 800px; /* Minimum width to prevent cramping */
 }
 
 .mappings-table th {
@@ -321,10 +343,21 @@
   white-space: nowrap;
 }
 
+/* Column width distribution */
+.mappings-table th:nth-child(1) { width: 16%; } /* Gateway */
+.mappings-table th:nth-child(2) { width: 16%; } /* Channel */
+.mappings-table th:nth-child(3) { width: 20%; } /* Pay Code */
+.mappings-table th:nth-child(4) { width: 14%; } /* Provider */
+.mappings-table th:nth-child(5) { width: 10%; } /* Status */
+.mappings-table th:nth-child(6) { width: 12%; } /* Created */
+.mappings-table th:nth-child(7) { width: 12%; } /* Actions */
+
 .mappings-table td {
   padding: 15px 12px;
   border-bottom: 1px solid #e9ecef;
   vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mapping-row:hover {
@@ -351,8 +384,10 @@
   background: #f8f9fa;
   padding: 4px 8px;
   border-radius: 4px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #495057;
+  word-break: break-all;
+  white-space: normal;
 }
 
 .provider {
@@ -390,13 +425,15 @@
 }
 
 .actions {
-  min-width: 150px;
+  min-width: 180px;
 }
 
 .action-buttons {
   display: flex;
-  gap: 5px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 /* Empty State */
@@ -425,6 +462,22 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .gateway-channel-mapping {
+    padding: 18px;
+  }
+  
+  .mappings-table {
+    min-width: 900px; /* Slightly wider for medium screens */
+  }
+}
+
+@media (max-width: 992px) {
+  .gateway-channel-mapping {
+    padding: 16px;
+  }
+}
+
 @media (max-width: 768px) {
   .gateway-channel-mapping {
     padding: 15px;
@@ -441,15 +494,30 @@
   }
   
   .mappings-table {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    min-width: 700px;
   }
   
   .mappings-table th,
   .mappings-table td {
-    padding: 10px 8px;
+    padding: 8px 6px;
   }
   
   .action-buttons {
-    flex-direction: column;
+    gap: 2px;
   }
+  
+  .btn-sm {
+    padding: 3px 6px;
+    font-size: 0.7rem;
+  }
+  
+  /* Adjust column widths for mobile */
+  .mappings-table th:nth-child(1) { width: 14%; } /* Gateway */
+  .mappings-table th:nth-child(2) { width: 14%; } /* Channel */
+  .mappings-table th:nth-child(3) { width: 20%; } /* Pay Code */
+  .mappings-table th:nth-child(4) { width: 12%; } /* Provider */
+  .mappings-table th:nth-child(5) { width: 8%; }  /* Status */
+  .mappings-table th:nth-child(6) { width: 12%; } /* Created */
+  .mappings-table th:nth-child(7) { width: 20%; } /* Actions */
 }
