@@ -1,3 +1,8 @@
+/* Role Management Container */
+.role-management-container {
+  padding: 20px;
+}
+
 /* Page Layout */
 .page-header {
   display: flex;

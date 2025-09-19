@@ -1,5 +1,7 @@
-<!-- Header Section -->
-<div class="page-header">
+<div class="permission-management-container">
+  <div class="permission-management-content">
+    <!-- Header Section -->
+    <div class="page-header">
   <div class="header-content">
     <h1>Permission Management</h1>
     <p>Manage system permissions and access controls</p>
@@ -2030,7 +2032,8 @@
 
 <!-- Permissions Table -->
 <div class="table-container" *ngIf="!loading || permissions.length > 0">
-  <table class="data-table" *ngIf="filteredPermissions.length > 0; else noPermissions">
+  <div class="table-responsive">
+    <table class="data-table" *ngIf="filteredPermissions.length > 0; else noPermissions">
     <thead>
       <tr>
         <th>Name</th>
@@ -2101,6 +2104,7 @@
       </tr>
     </tbody>
   </table>
+  </div>
 
   <!-- No Permissions Message -->
   <ng-template #noPermissions>
@@ -2357,5 +2361,7 @@
         🔄 Recheck Both
       </button>
     </div>
+  </div>
+</div>
   </div>
 </div>

@@ -11,6 +11,17 @@
   --text-secondary: #6c757d;
 }
 
+/* Permission Management Container */
+.permission-management-container {
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.permission-management-content {
+  max-width: 100%;
+  margin: 0;
+}
+
 /* Page Layout */
 .page-header {
   display: flex;
@@ -30,8 +41,10 @@
 
 .header-content p {
   margin: 0;
-  color: #6c757d;
-  font-size: 1rem;
+  color: #2c3e50;
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: 1;
 }
 
 .header-actions {
@@ -497,9 +510,34 @@
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
 }
 
+.table-responsive {
+  overflow-x: auto;
+  margin: 0;
+}
+
+.table-responsive::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #a1a1a1;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 1000px;
 }
 
 .data-table th {
@@ -509,12 +547,23 @@
   padding: 1rem;
   text-align: left;
   border-bottom: 2px solid #e9ecef;
+  white-space: nowrap;
 }
+
+/* Column width distribution for permissions table */
+.data-table th:nth-child(1) { width: 20%; } /* Name */
+.data-table th:nth-child(2) { width: 12%; } /* Action */
+.data-table th:nth-child(3) { width: 14%; } /* Resource */
+.data-table th:nth-child(4) { width: 16%; } /* Scope */
+.data-table th:nth-child(5) { width: 23%; } /* Description */
+.data-table th:nth-child(6) { width: 15%; } /* Actions */
 
 .data-table td {
   padding: 1rem;
   border-bottom: 1px solid #e9ecef;
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .data-table tr:hover {
@@ -632,13 +681,17 @@
 
 /* Actions */
 .actions-cell {
-  width: 120px;
+  min-width: 160px;
+  width: auto;
 }
 
 .action-buttons {
   display: flex;
-  gap: 0.5rem;
+  gap: 4px;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
+  line-height: 1.2;
 }
 
 /* Button Styles */
@@ -747,8 +800,10 @@
 }
 
 .btn-sm {
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  min-width: auto;
+  white-space: nowrap;
 }
 
 /* Loading States */
@@ -849,7 +904,27 @@
 }
 
 /* Responsive Design */
+@media (max-width: 1200px) {
+  .permission-management-container {
+    padding: 18px;
+  }
+  
+  .data-table {
+    min-width: 900px;
+  }
+}
+
+@media (max-width: 992px) {
+  .permission-management-container {
+    padding: 16px;
+  }
+}
+
 @media (max-width: 768px) {
+  .permission-management-container {
+    padding: 15px;
+  }
+  
   .page-header {
     flex-direction: column;
     align-items: stretch;
@@ -885,6 +960,7 @@
   
   .data-table {
     font-size: 0.875rem;
+    min-width: 800px;
   }
   
   .data-table th,
@@ -895,6 +971,14 @@
   .description-cell {
     max-width: 200px;
   }
+  
+  /* Adjust column widths for mobile */
+  .data-table th:nth-child(1) { width: 18%; } /* Name */
+  .data-table th:nth-child(2) { width: 10%; } /* Action */
+  .data-table th:nth-child(3) { width: 12%; } /* Resource */
+  .data-table th:nth-child(4) { width: 14%; } /* Scope */
+  .data-table th:nth-child(5) { width: 22%; } /* Description */
+  .data-table th:nth-child(6) { width: 24%; } /* Actions */
   
   /* Adjust form controls for mobile */
   .form-control select option {
